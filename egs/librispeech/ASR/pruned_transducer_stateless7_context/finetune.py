@@ -50,7 +50,7 @@ import logging
 import warnings
 from pathlib import Path
 from shutil import copyfile
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import k2
 import optim
@@ -58,8 +58,8 @@ import sentencepiece as spm
 import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
-from asr_datamodule import LibriSpeechAsrDataModule
 from decoder import Decoder
+from gigaspeech import GigaSpeechAsrDataModule
 from joiner import Joiner
 from lhotse.cut import Cut
 from lhotse.dataset.sampling.base import CutSampler
@@ -102,6 +102,31 @@ def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
             module.batch_count = batch_count
 
 
+def add_finetune_arguments(parser: argparse.ArgumentParser):
+    parser.add_argument("--do-finetune", type=str2bool, default=False)
+
+    parser.add_argument(
+        "--init-modules",
+        type=str,
+        default=None,
+        help="""
+        Modules to be initialized. It matches all parameters starting with
+        a specific key. The keys are given with Comma seperated. If None, 
+        all modules will be initialised. For example, if you only want to 
+        initialise all parameters staring with "encoder", use "encoder"; 
+        if you want to initialise parameters starting with encoder or decoder,
+        use "encoder,joiner".
+        """,
+    )
+
+    parser.add_argument(
+        "--finetune-ckpt",
+        type=str,
+        default=None,
+        help="Fine-tuning from which checkpoint (a path to a .pt file)",
+    )
+
+
 def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--num-encoder-layers",
@@ -128,24 +153,28 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         "--encoder-dims",
         type=str,
         default="384,384,384,384,384",
-        help="Embedding dimension in the 2 blocks of zipformer encoder layers, comma separated",
+        help="""Embedding dimension in the 2 blocks of zipformer encoder
+        layers, comma separated
+        """,
     )
 
     parser.add_argument(
         "--attention-dims",
         type=str,
         default="192,192,192,192,192",
-        help="""Attention dimension in the 2 blocks of zipformer encoder layers, comma separated;
-        not the same as embedding dimension.""",
+        help="""Attention dimension in the 2 blocks of zipformer encoder layers,\
+        comma separated; not the same as embedding dimension.
+        """,
     )
 
     parser.add_argument(
         "--encoder-unmasked-dims",
         type=str,
         default="256,256,256,256,256",
-        help="Unmasked dimensions in the encoders, relates to augmentation during training.  "
-        "Must be <= each of encoder_dims.  Empirically, less than 256 seems to make performance "
-        " worse.",
+        help="""Unmasked dimensions in the encoders, relates to augmentation
+        during training. Must be <= each of encoder_dims. Empirically, less 
+        than 256 seems to make performance worse.
+        """,
     )
 
     parser.add_argument(
@@ -246,26 +275,34 @@ def get_parser():
         "--bpe-model",
         type=str,
         default="data/lang_bpe_500/bpe.model",
-        help="Path to the BPE model",
+        help="""Path to the BPE model. 
+        This should be the bpe model of the original model
+        """,
     )
 
     parser.add_argument(
-        "--base-lr", type=float, default=0.05, help="The base learning rate."
+        "--base-lr", type=float, default=0.005, help="The base learning rate."
     )
 
     parser.add_argument(
         "--lr-batches",
         type=float,
-        default=5000,
+        default=100000,
         help="""Number of steps that affects how rapidly the learning rate
-        decreases. We suggest not to change this.""",
+        decreases. During fine-tuning, we set this very large so that the 
+        learning rate slowly decays with number of batches. You may tune 
+        its value by yourself.
+        """,
     )
 
     parser.add_argument(
         "--lr-epochs",
         type=float,
-        default=3.5,
-        help="""Number of epochs that affects how rapidly the learning rate decreases.
+        default=100,
+        help="""Number of epochs that affects how rapidly the learning rate 
+        decreases. During fine-tuning, we set this very large so that the 
+        learning rate slowly decays with number of batches. You may tune 
+        its value by yourself.
         """,
     )
 
@@ -375,6 +412,7 @@ def get_parser():
     )
 
     add_model_arguments(parser)
+    add_finetune_arguments(parser)
 
     return parser
 
@@ -573,6 +611,49 @@ def load_checkpoint_if_available(
             params["cur_batch_idx"] = saved_params["cur_batch_idx"]
 
     return saved_params
+
+
+def load_model_params(
+    ckpt: str, model: nn.Module, init_modules: List[str] = None, strict: bool = True
+):
+    """Load model params from checkpoint
+
+    Args:
+        ckpt (str): Path to the checkpoint
+        model (nn.Module): model to be loaded
+
+    """
+    logging.info(f"Loading checkpoint from {ckpt}")
+    checkpoint = torch.load(ckpt, map_location="cpu")
+
+    # if module list is empty, load the whole model from ckpt
+    if not init_modules:
+        if next(iter(checkpoint["model"])).startswith("module."):
+            logging.info("Loading checkpoint saved by DDP")
+
+            dst_state_dict = model.state_dict()
+            src_state_dict = checkpoint["model"]
+            for key in dst_state_dict.keys():
+                src_key = "{}.{}".format("module", key)
+                dst_state_dict[key] = src_state_dict.pop(src_key)
+            assert len(src_state_dict) == 0
+            model.load_state_dict(dst_state_dict, strict=strict)
+        else:
+            model.load_state_dict(checkpoint["model"], strict=strict)
+    else:
+        src_state_dict = checkpoint["model"]
+        dst_state_dict = model.state_dict()
+        for module in init_modules:
+            logging.info(f"Loading parameters starting with prefix {module}")
+            src_keys = [k for k in src_state_dict.keys() if k.startswith(module)]
+            dst_keys = [k for k in dst_state_dict.keys() if k.startswith(module)]
+            assert set(src_keys) == set(dst_keys)  # two sets should match exactly
+            for key in src_keys:
+                dst_state_dict[key] = src_state_dict.pop(key)
+
+        model.load_state_dict(dst_state_dict, strict=strict)
+
+    return None
 
 
 def save_checkpoint(
@@ -875,9 +956,9 @@ def train_one_epoch(
             )
 
         if batch_idx % 100 == 0 and params.use_fp16:
-            # If the grad scale was less than 1, try increasing it.    The _growth_interval
-            # of the grad scaler is configurable, but we can't configure it to have different
-            # behavior depending on the current grad scale.
+            # If the grad scale was less than 1, try increasing it. The _growth_interval
+            # of the grad scaler is configurable, but we can't configure it to have
+            # different behavior depending on the current grad scale.
             cur_grad_scale = scaler._scale.item()
             if cur_grad_scale < 1.0 or (cur_grad_scale < 8.0 and batch_idx % 400 == 0):
                 scaler.update(cur_grad_scale * 2.0)
@@ -956,8 +1037,6 @@ def run(rank, world_size, args):
     """
     params = get_params()
     params.update(vars(args))
-    if params.full_libri is False:
-        params.valid_interval = 800
 
     fix_random_seed(params.seed)
     if world_size > 1:
@@ -997,10 +1076,17 @@ def run(rank, world_size, args):
         # model_avg is only used with rank 0
         model_avg = copy.deepcopy(model).to(torch.float64)
 
-    assert params.start_epoch > 0, params.start_epoch
-    checkpoints = load_checkpoint_if_available(
-        params=params, model=model, model_avg=model_avg
-    )
+    # load model parameters for model fine-tuning
+    if params.do_finetune:
+        modules = params.init_modules.split(",") if params.init_modules else None
+        checkpoints = load_model_params(
+            ckpt=params.finetune_ckpt, model=model, init_modules=modules
+        )
+    else:
+        assert params.start_epoch > 0, params.start_epoch
+        checkpoints = load_checkpoint_if_available(
+            params=params, model=model, model_avg=model_avg
+        )
 
     model.to(device)
     if world_size > 1:
@@ -1041,14 +1127,9 @@ def run(rank, world_size, args):
     if params.inf_check:
         register_inf_check_hooks(model)
 
-    librispeech = LibriSpeechAsrDataModule(args)
+    gigaspeech = GigaSpeechAsrDataModule(args)
 
-    if params.full_libri:
-        train_cuts = librispeech.train_all_shuf_cuts()
-    else:
-        # train_cuts = librispeech.train_clean_100_cuts()
-        train_cuts = librispeech.train_clean_100_cuts_sample()
-    train_cuts.describe()
+    train_cuts = gigaspeech.train_cuts()
 
     def remove_short_and_long_utt(c: Cut):
         # Keep only utterances with duration between 1 second and 20 seconds
@@ -1096,13 +1177,12 @@ def run(rank, world_size, args):
     else:
         sampler_state_dict = None
 
-    train_dl = librispeech.train_dataloaders(
+    train_dl = gigaspeech.train_dataloaders(
         train_cuts, sampler_state_dict=sampler_state_dict
     )
 
-    valid_cuts = librispeech.dev_clean_cuts()
-    valid_cuts += librispeech.dev_other_cuts()
-    valid_dl = librispeech.valid_dataloaders(valid_cuts)
+    valid_cuts = gigaspeech.dev_cuts()
+    valid_dl = gigaspeech.valid_dataloaders(valid_cuts)
 
     if not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
@@ -1241,7 +1321,9 @@ def scan_pessimistic_batches_for_oom(
 
 def main():
     parser = get_parser()
-    LibriSpeechAsrDataModule.add_arguments(parser)
+    GigaSpeechAsrDataModule.add_arguments(
+        parser
+    )  # you may replace this with your own dataset
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 

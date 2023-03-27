@@ -1,5 +1,4 @@
 # Copyright      2021  Piotr Żelasko
-# Copyright      2022  Xiaomi Corporation     (Author: Mingshuang Luo)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -25,7 +24,7 @@ from typing import Any, Dict, Optional
 
 import torch
 from lhotse import CutSet, Fbank, FbankConfig, load_manifest, load_manifest_lazy
-from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
+from lhotse.dataset import (
     CutConcatenate,
     CutMix,
     DynamicBucketingSampler,
@@ -34,10 +33,7 @@ from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     SingleCutSampler,
     SpecAugment,
 )
-from lhotse.dataset.input_strategies import (  # noqa F401 For AudioSamples
-    AudioSamples,
-    OnTheFlyFeatures,
-)
+from lhotse.dataset.input_strategies import OnTheFlyFeatures
 from lhotse.utils import fix_random_seed
 from torch.utils.data import DataLoader
 
@@ -52,7 +48,7 @@ class _SeedWorkers:
         fix_random_seed(self.seed + worker_id)
 
 
-class LibriSpeechAsrDataModule:
+class GigaSpeechAsrDataModule:
     """
     DataModule for k2 ASR experiments.
     It assumes there is always one train and valid dataloader,
@@ -81,12 +77,6 @@ class LibriSpeechAsrDataModule:
             "PyTorch DataLoaders from Lhotse CutSet's -- they control the "
             "effective batch sizes, sampling strategies, applied data "
             "augmentations, etc.",
-        )
-        group.add_argument(
-            "--full-libri",
-            type=str2bool,
-            default=True,
-            help="When enabled, use 960h LibriSpeech. Otherwise, use 100h subset.",
         )
         group.add_argument(
             "--manifest-dir",
@@ -153,12 +143,6 @@ class LibriSpeechAsrDataModule:
             "shuffled for each epoch.",
         )
         group.add_argument(
-            "--drop-last",
-            type=str2bool,
-            default=True,
-            help="Whether to drop last batch. Used by sampler.",
-        )
-        group.add_argument(
             "--return-cuts",
             type=str2bool,
             default=True,
@@ -196,15 +180,22 @@ class LibriSpeechAsrDataModule:
             "--enable-musan",
             type=str2bool,
             default=True,
-            help="When enabled, select noise from MUSAN and mix it"
+            help="When enabled, select noise from MUSAN and mix it "
             "with training dataset. ",
         )
 
+        # GigaSpeech specific arguments
         group.add_argument(
-            "--input-strategy",
+            "--subset",
             type=str,
-            default="PrecomputedFeatures",
-            help="AudioSamples or PrecomputedFeatures",
+            default="XL",
+            help="Select the GigaSpeech subset (XS|S|M|L|XL)",
+        )
+        group.add_argument(
+            "--small-dev",
+            type=str2bool,
+            default=False,
+            help="Should we use only 1000 utterances for dev (speeds up training)",
         )
 
     def train_dataloaders(
@@ -219,6 +210,7 @@ class LibriSpeechAsrDataModule:
           sampler_state_dict:
             The state dict for the training sampler.
         """
+
         transforms = []
         if self.args.enable_musan:
             logging.info("Enable MUSAN")
@@ -272,7 +264,6 @@ class LibriSpeechAsrDataModule:
 
         logging.info("About to create train dataset")
         train = K2SpeechRecognitionDataset(
-            input_strategy=eval(self.args.input_strategy)(),
             cut_transforms=transforms,
             input_transforms=input_transforms,
             return_cuts=self.args.return_cuts,
@@ -303,7 +294,7 @@ class LibriSpeechAsrDataModule:
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
-                drop_last=self.args.drop_last,
+                drop_last=True,
             )
         else:
             logging.info("Using SingleCutSampler.")
@@ -376,7 +367,7 @@ class LibriSpeechAsrDataModule:
         test = K2SpeechRecognitionDataset(
             input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)))
             if self.args.on_the_fly_feats
-            else eval(self.args.input_strategy)(),
+            else PrecomputedFeatures(),
             return_cuts=self.args.return_cuts,
         )
         sampler = DynamicBucketingSampler(
@@ -394,67 +385,22 @@ class LibriSpeechAsrDataModule:
         return test_dl
 
     @lru_cache()
-    def train_clean_100_cuts(self) -> CutSet:
-        logging.info("About to get train-clean-100 cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-clean-100.jsonl.gz"
-        )
+    def train_cuts(self) -> CutSet:
+        logging.info(f"About to get train_{self.args.subset} cuts")
+        path = self.args.manifest_dir / f"cuts_{self.args.subset}.jsonl.gz"
+        cuts_train = CutSet.from_jsonl_lazy(path)
+        return cuts_train
 
     @lru_cache()
-    def train_clean_100_cuts_sample(self) -> CutSet:
-        logging.info("About to get train-clean-100 cuts (sampled)")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-clean-100-0.4.jsonl.gz"
-        )
+    def dev_cuts(self) -> CutSet:
+        logging.info("About to get dev cuts")
+        cuts_valid = load_manifest_lazy(self.args.manifest_dir / "cuts_DEV.jsonl.gz")
+        if self.args.small_dev:
+            return cuts_valid.subset(first=1000)
+        else:
+            return cuts_valid
 
     @lru_cache()
-    def train_clean_360_cuts(self) -> CutSet:
-        logging.info("About to get train-clean-360 cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-clean-360.jsonl.gz"
-        )
-
-    @lru_cache()
-    def train_other_500_cuts(self) -> CutSet:
-        logging.info("About to get train-other-500 cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-other-500.jsonl.gz"
-        )
-
-    @lru_cache()
-    def train_all_shuf_cuts(self) -> CutSet:
-        logging.info(
-            "About to get the shuffled train-clean-100, \
-            train-clean-360 and train-other-500 cuts"
-        )
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_train-all-shuf.jsonl.gz"
-        )
-
-    @lru_cache()
-    def dev_clean_cuts(self) -> CutSet:
-        logging.info("About to get dev-clean cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_dev-clean.jsonl.gz"
-        )
-
-    @lru_cache()
-    def dev_other_cuts(self) -> CutSet:
-        logging.info("About to get dev-other cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_dev-other.jsonl.gz"
-        )
-
-    @lru_cache()
-    def test_clean_cuts(self) -> CutSet:
-        logging.info("About to get test-clean cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_test-clean.jsonl.gz"
-        )
-
-    @lru_cache()
-    def test_other_cuts(self) -> CutSet:
-        logging.info("About to get test-other cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "librispeech_cuts_test-other.jsonl.gz"
-        )
+    def test_cuts(self) -> CutSet:
+        logging.info("About to get test cuts")
+        return load_manifest_lazy(self.args.manifest_dir / "cuts_TEST.jsonl.gz")
