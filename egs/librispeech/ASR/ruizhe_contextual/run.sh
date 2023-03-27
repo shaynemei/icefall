@@ -64,3 +64,12 @@ cd /export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/data
 git clone git@github.com:facebookresearch/fbai-speech.git
 cd -
 
+cd /export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/
+export PATH=/export/fs04/a12/rhuang/git-lfs-3.2.0/:$PATH
+git lfs install
+git lfs version
+mkdir -p pretrained
+cd pretrained; git clone https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11; cd ..
+path_to_pretrained_asr_model="/export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/pretrained/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/"
+# ln -s $path_to_pretrained_asr_model/exp/pretrained.pt $path_to_pretrained_asr_model/exp/epoch-0.pt
+lang=$path_to_pretrained_asr_model/data/lang_bpe_500/

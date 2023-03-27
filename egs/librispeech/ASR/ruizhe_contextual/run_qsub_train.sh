@@ -46,11 +46,12 @@ nvidia-smi
 # python3 tdnn_lstm_ctc/train_bpe.py --world-size 4 
 
 python pruned_transducer_stateless7_context/train.py \
-  --world-size 4 \
+  --world-size 1 \
   --num-epochs 30 \
   --full-libri false \
   --use-fp16 true \
   --max-duration 300 \
   --exp-dir pruned_transducer_stateless7_context/exp/exp_libri_100 \
   --feedforward-dims  "1024,1024,2048,2048,1024" \
-  --master-port 12535
+  --master-port 12535 \
+  --start-epoch 2
