@@ -460,7 +460,7 @@ def get_params() -> AttributeDict:
             "batch_idx_train": 0,
             "log_interval": 50,
             "reset_interval": 200,
-            "valid_interval": 3000,  # For the 100h subset, use 800
+            "valid_interval": 2000,  # For the 100h subset, use 800
             # parameters for zipformer
             "feature_dim": 80,
             "subsampling_factor": 4,  # not passed in, this is fixed.
@@ -735,7 +735,7 @@ def compute_loss(
 
     word_list, word_lengths, num_words_per_utt = \
         context_generator.get_context_word_list_random(
-            texts,
+            batch,
             context_size=params.context_n_words,
             keep_ratio=params.keep_ratio,
         )
@@ -1114,26 +1114,38 @@ def run(rank, world_size, args):
 
     scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
 
-    # if checkpoints and "optimizer" in checkpoints:
-    #     logging.info("Loading optimizer state dict")
-    #     optimizer.load_state_dict(checkpoints["optimizer"])
+    if params.start_epoch > 2:  # params.start_epoch == 2 is reserved for loading the pretrained ASR model without biasing
+        logging.info("Loading optimizer and scheduler states")
+        if checkpoints and "optimizer" in checkpoints:
+            logging.info("Loading optimizer state dict")
+            optimizer.load_state_dict(checkpoints["optimizer"])
 
-    # if (
-    #     checkpoints
-    #     and "scheduler" in checkpoints
-    #     and checkpoints["scheduler"] is not None
-    # ):
-    #     logging.info("Loading scheduler state dict")
-    #     scheduler.load_state_dict(checkpoints["scheduler"])
+        if (
+            checkpoints
+            and "scheduler" in checkpoints
+            and checkpoints["scheduler"] is not None
+        ):
+            logging.info("Loading scheduler state dict")
+            scheduler.load_state_dict(checkpoints["scheduler"])
 
-    if params.print_diagnostics:
-        opts = diagnostics.TensorDiagnosticOptions(
-            2**22
-        )  # allow 4 megabytes per sub-module
-        diagnostic = diagnostics.attach_diagnostics(model, opts)
+        if params.print_diagnostics:
+            opts = diagnostics.TensorDiagnosticOptions(
+                2**22
+            )  # allow 4 megabytes per sub-module
+            diagnostic = diagnostics.attach_diagnostics(model, opts)
 
     if params.inf_check:
         register_inf_check_hooks(model)
+
+    # TODO: double check
+    num_param_requires_grad = sum(
+        [p.numel() for p in model.parameters() if p.requires_grad]
+    )
+    logging.info(
+        f"Number of model parameters (requires_grad, double check): "
+        f"{num_param_requires_grad} "
+        f"({num_param_requires_grad/num_param*100:.2f}%)"
+    )
 
     librispeech = LibriSpeechAsrDataModule(args)
 

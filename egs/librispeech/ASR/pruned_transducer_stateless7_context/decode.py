@@ -156,6 +156,7 @@ from beam_search import (
     modified_beam_search_ngram_rescoring,
 )
 from train import add_model_arguments, get_params, get_transducer_model
+from context_generator import ContextGenerator
 
 from icefall import LmScorer, NgramLm
 from icefall.checkpoint import (
@@ -410,6 +411,28 @@ def get_parser():
                 Used only when the decoding method is
                 modified_beam_search_ngram_rescoring""",
     )
+
+    parser.add_argument(
+        "--context-dir",
+        type=str,
+        default="data/fbai-speech/is21_deep_bias/",
+        help="",
+    )
+
+    parser.add_argument(
+        "--context-n-words",
+        type=int,
+        default=100,
+        help="",
+    )
+
+    parser.add_argument(
+        "--keep-ratio",
+        type=int,
+        default=1.0,
+        help="",
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -490,6 +513,10 @@ def decode_one_batch(
         )
     else:
         encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
+
+    contexts, contexts_mask = model.scratch_space
+    encoder_biasing_out = model.encoder_biasing_adapter.forward(encoder_out, contexts, contexts_mask)
+    encoder_out = encoder_out + encoder_biasing_out
 
     hyps = []
 
@@ -635,6 +662,7 @@ def decode_dataset(
     dl: torch.utils.data.DataLoader,
     params: AttributeDict,
     model: nn.Module,
+    context_generator: ContextGenerator,
     sp: spm.SentencePieceProcessor,
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
@@ -680,10 +708,26 @@ def decode_dataset(
     else:
         log_interval = 20
 
+    device = next(model.parameters()).device
+
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
+
+        word_list, word_lengths, num_words_per_utt = \
+        context_generator.get_context_word_list_random(
+            batch,
+            context_size=params.context_n_words,
+            keep_ratio=params.keep_ratio,
+        )
+        word_list = word_list.to(device)
+        contexts, contexts_mask = model.context_encoder.embed_contexts(
+            word_list,
+            word_lengths,
+            num_words_per_utt,
+        )
+        model.scratch_space = (contexts, contexts_mask)
 
         hyps_dict = decode_one_batch(
             params=params,
@@ -985,11 +1029,19 @@ def main():
     test_sets = ["test-clean", "test-other"]
     test_dl = [test_clean_dl, test_other_dl]
 
+    logging.info("About to load context generator")
+    params.context_dir = Path(params.context_dir)
+    context_generator = ContextGenerator(
+        params.context_dir,
+        sp,
+    )
+
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
             dl=test_dl,
             params=params,
             model=model,
+            context_generator=context_generator,
             sp=sp,
             word_table=word_table,
             decoding_graph=decoding_graph,

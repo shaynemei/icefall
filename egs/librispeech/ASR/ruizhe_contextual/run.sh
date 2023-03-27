@@ -71,5 +71,12 @@ git lfs version
 mkdir -p pretrained
 cd pretrained; git clone https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11; cd ..
 path_to_pretrained_asr_model="/export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/pretrained/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/"
-# ln -s $path_to_pretrained_asr_model/exp/pretrained.pt $path_to_pretrained_asr_model/exp/epoch-0.pt
+# ln -s $path_to_pretrained_asr_model/exp/pretrained.pt $path_to_pretrained_asr_model/exp/epoch-1.pt
 lang=$path_to_pretrained_asr_model/data/lang_bpe_500/
+
+ln -sf $path_to_pretrained_asr_model/exp/epoch-30.pt pruned_transducer_stateless7_context/exp/exp_libri_full/epoch-1.pt
+
+scp -r rhuang@login.clsp.jhu.edu:/export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/pruned_transducer_stateless7_context/*.* pruned_transducer_stateless7_context/.
+scp -r rhuang@login.clsp.jhu.edu:/export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/ruizhe_contextual/run_qsub_train_coe.sh ruizhe_contextual/run_qsub_train_coe.sh
+scp -r rhuang@login.clsp.jhu.edu:/export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/ruizhe_contextual/run_qsub_decode_coe.sh ruizhe_contextual/run_qsub_decode_coe.sh
+scp -r rhuang@login.clsp.jhu.edu:/export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/pruned_transducer_stateless2/beam_search.py pruned_transducer_stateless2/beam_search.py

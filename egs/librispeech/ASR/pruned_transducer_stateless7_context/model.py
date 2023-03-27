@@ -78,6 +78,9 @@ class Transducer(nn.Module):
         )
         self.simple_lm_proj = nn.Linear(decoder_dim, vocab_size)
 
+        # For temporary convenience
+        self.scratch_space = None
+
     def forward(
         self,
         x: torch.Tensor,

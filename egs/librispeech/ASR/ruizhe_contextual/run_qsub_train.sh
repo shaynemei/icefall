@@ -2,7 +2,7 @@
 #$ -wd /export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR
 #$ -V
 #$ -N train
-#$ -j y -o ruizhe/log/$JOB_NAME-$JOB_ID.out
+#$ -j y -o ruizhe_contextual/log/$JOB_NAME-$JOB_ID.out
 #$ -M ruizhe@jhu.edu
 #$ -m e
 #$ -l ram_free=16G,mem_free=16G,gpu=4,hostname=!b*
@@ -12,6 +12,7 @@
 
 #### Activate dev environments and call programs
 mamba activate /home/rhuang/mambaforge/envs/efrat
+# mamba activate /home/rhuang/mambaforge/envs/efrat2
 export PYTHONPATH=/export/fs04/a12/rhuang/k2/k2/python:$PYTHONPATH # for `import k2`
 export PYTHONPATH=/export/fs04/a12/rhuang/k2/build/temp.linux-x86_64-cpython-38/lib/:$PYTHONPATH # for `import _k2`
 # export PYTHONPATH=/export/fs04/a12/rhuang/icefall_align/:$PYTHONPATH
