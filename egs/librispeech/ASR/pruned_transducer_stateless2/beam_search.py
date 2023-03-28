@@ -1943,6 +1943,8 @@ def modified_beam_search_LODR(
 
     encoder_out = model.joiner.encoder_proj(packed_encoder_out.data)
 
+    contexts, contexts_mask = model.scratch_space
+
     offset = 0
     finalized_B = []
     for batch_size in batch_size_list:
@@ -1971,7 +1973,16 @@ def modified_beam_search_LODR(
             dtype=torch.int64,
         )  # (num_hyps, context_size)
 
-        decoder_out = model.decoder(decoder_input, need_pad=False).unsqueeze(1)
+        decoder_out = model.decoder(decoder_input, need_pad=False)
+
+        contexts_idx = [i_hyps for i_hyps, hyps in enumerate(A) for hyp in hyps]
+        assert len(contexts_idx) == decoder_out.size(0), (len(contexts_idx), decoder_out.size(0))
+        contexts_, contexts_mask_ = contexts[contexts_idx], contexts_mask[contexts_idx]
+
+        decoder_biasing_out = model.decoder_biasing_adapter.forward(decoder_out, contexts_, contexts_mask_)
+        decoder_out = decoder_out + decoder_biasing_out
+        decoder_out = decoder_out.unsqueeze(1)
+
         decoder_out = model.joiner.decoder_proj(decoder_out)
 
         current_encoder_out = torch.index_select(

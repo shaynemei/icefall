@@ -46,8 +46,8 @@ echo "hostname: `hostname`"
 
 # greedy_search fast_beam_search
 for m in modified_beam_search ; do
-  for epoch in 13; do
-    for avg in 4; do
+  for epoch in 26; do
+    for avg in 10; do
       ./pruned_transducer_stateless7_context/decode.py \
           --epoch $epoch \
           --avg $avg \
@@ -67,3 +67,6 @@ done
 # cd /export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR
 # for m in modified_beam_search ; do   for epoch in 10; do     for avg in 1; do       ./pruned_transducer_stateless7_context/decode.py           --epoch $epoch           --avg $avg           --use-averaged-model 0           --exp-dir ./pruned_transducer_stateless7_context/exp/exp_libri_full           --feedforward-dims  "1024,1024,2048,2048,1024"           --max-duration 400           --decoding-method $m;     done;   done; done
 # /export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/pruned_transducer_stateless7_context/exp/exp_libri_full/modified_beam_search/log-decode-epoch-10-avg-1-modified_beam_search-beam-size-4-2023-03-27-17-25-08
+
+
+for m in modified_beam_search ; do   for epoch in 24; do     for avg in 5; do       ./pruned_transducer_stateless7_context/decode.py           --epoch $epoch           --avg $avg           --use-averaged-model 0           --exp-dir ./pruned_transducer_stateless7_context/exp/exp_libri_full           --feedforward-dims  "1024,1024,2048,2048,1024"           --max-duration 400           --decoding-method $m;     done;   done; done

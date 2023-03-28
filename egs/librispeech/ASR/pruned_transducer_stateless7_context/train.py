@@ -394,7 +394,7 @@ def get_parser():
 
     parser.add_argument(
         "--keep-ratio",
-        type=int,
+        type=float,
         default=1.0,
         help="",
     )

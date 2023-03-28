@@ -54,22 +54,36 @@ echo "hostname: `hostname`"
 #   --feedforward-dims  "1024,1024,2048,2048,1024" \
 #   --master-port 12535
 
+context_n_words=500
+path_to_pretrained_asr_model=/exp/rhuang/librispeech/pretrained2/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/
+exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${context_n_words}
+mkdir -p $exp_dir
+if [ ! -f $exp_dir/epoch-1.pt ]; then
+  ln -s $path_to_pretrained_asr_model/exp/epoch-30.pt $exp_dir/epoch-1.pt
+fi
+
 python pruned_transducer_stateless7_context/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --full-libri true \
   --use-fp16 true \
   --max-duration 700 \
-  --exp-dir pruned_transducer_stateless7_context/exp/exp_libri_full \
+  --exp-dir $exp_dir \
   --feedforward-dims  "1024,1024,2048,2048,1024" \
   --master-port 12535 \
   --num-workers 10 \
   --context-dir "data/fbai-speech/is21_deep_bias/" \
   --context-n-words 100 \
   --keep-ratio 1.0 \
-  --start-epoch 2
+  --start-epoch 2 \
+  --context-n-words ${context_n_words}
 
 # --start-batch 
 
+# context size 100:
 # /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10576003.out
 # /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10577155.out
+# /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10578161.out
+
+# context size 500:
+# /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10579396.out
