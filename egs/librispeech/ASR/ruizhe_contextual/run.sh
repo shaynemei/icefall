@@ -80,3 +80,18 @@ ln -sf $path_to_pretrained_asr_model/exp/epoch-30.pt pruned_transducer_stateless
 scp -r rhuang@login.clsp.jhu.edu:/export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/pruned_transducer_stateless7_context/*.* pruned_transducer_stateless7_context/.
 scp -r rhuang@login.clsp.jhu.edu:/export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/ruizhe_contextual/*.* ruizhe_contextual/.
 scp -r rhuang@login.clsp.jhu.edu:/export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/pruned_transducer_stateless2/beam_search.py pruned_transducer_stateless2/.
+
+scp -r pruned_transducer_stateless7_context/exp/exp_libri_full/epoch-{1,2}*.pt rhuang@login.clsp.jhu.edu:/export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/pruned_transducer_stateless7_context/exp/exp_libri_full/.
+
+# clsp grid initialize
+# ql
+cd /export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR
+mamba activate /home/rhuang/mambaforge/envs/efrat2
+export PYTHONPATH=/export/fs04/a12/rhuang/k2/k2/python:$PYTHONPATH # for `import k2`
+export PYTHONPATH=/export/fs04/a12/rhuang/k2/build/temp.linux-x86_64-cpython-38/lib/:$PYTHONPATH # for `import _k2`
+# export PYTHONPATH=/export/fs04/a12/rhuang/icefall_align/:$PYTHONPATH
+# export PYTHONPATH=/export/fs04/a12/rhuang/icefall/:$PYTHONPATH
+export PYTHONPATH=/export/fs04/a12/rhuang/icefall_align2/:$PYTHONPATH
+source /home/gqin2/scripts/acquire-gpu 1
+
+

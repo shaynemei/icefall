@@ -76,10 +76,10 @@ lm_type="rnn"
 
 tokens_ngram_order=2
 for m in modified_beam_search_LODR ; do
-  # for epoch in 26; do
-  #   for avg in 10; do
-  for epoch in 24; do
-    for avg in 1; do
+  for epoch in 26; do
+    for avg in 10; do
+  # for epoch in 24; do
+  #   for avg in 1; do
       ./pruned_transducer_stateless7_context/decode.py \
           --epoch $epoch \
           --avg $avg \

@@ -734,11 +734,7 @@ def compute_loss(
     y = k2.RaggedTensor(y).to(device)
 
     word_list, word_lengths, num_words_per_utt = \
-        context_generator.get_context_word_list_random(
-            batch,
-            context_size=params.context_n_words,
-            keep_ratio=params.keep_ratio,
-        )
+        context_generator.get_context_word_list(batch)
     word_list = word_list.to(device)
     # word_lengths = word_lengths.to(device)
     # num_words_per_utt = num_words_per_utt.to(device)
@@ -1215,8 +1211,11 @@ def run(rank, world_size, args):
     logging.info("About to load context generator")
     params.context_dir = Path(params.context_dir)
     context_generator = ContextGenerator(
-        params.context_dir,
-        sp,
+        path_is21_deep_bias=params.context_dir,
+        sp=sp,
+        is_predefined=False,
+        context_size=params.context_n_words,
+        keep_ratio=params.keep_ratio,
     )
 
     if not params.print_diagnostics:

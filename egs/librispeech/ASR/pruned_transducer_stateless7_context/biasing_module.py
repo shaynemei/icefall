@@ -40,12 +40,13 @@ class BiasingModule(torch.nn.Module):
         """
 
         queries = self.proj_in(queries)
+        
         attn_output, attn_output_weights = self.multihead_attn(
             queries,    # query
             contexts,   # key
             contexts,   # value
             key_padding_mask=contexts_mask,
-            need_weights=True,  # TODO: True for debugging purpose
+            need_weights=False,
         )
         output = self.proj_out(attn_output)
 

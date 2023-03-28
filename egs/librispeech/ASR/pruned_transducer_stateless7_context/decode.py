@@ -716,11 +716,7 @@ def decode_dataset(
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
 
         word_list, word_lengths, num_words_per_utt = \
-        context_generator.get_context_word_list_random(
-            batch,
-            context_size=params.context_n_words,
-            keep_ratio=params.keep_ratio,
-        )
+            context_generator.get_context_word_list(batch)
         word_list = word_list.to(device)
         contexts, contexts_mask = model.context_encoder.embed_contexts(
             word_list,
@@ -1036,8 +1032,11 @@ def main():
     logging.info("About to load context generator")
     params.context_dir = Path(params.context_dir)
     context_generator = ContextGenerator(
-        params.context_dir,
-        sp,
+        path_is21_deep_bias=params.context_dir,
+        sp=sp,
+        is_predefined=False,
+        context_size=params.context_n_words,
+        keep_ratio=params.keep_ratio,
     )
 
     for test_set, test_dl in zip(test_sets, test_dl):
