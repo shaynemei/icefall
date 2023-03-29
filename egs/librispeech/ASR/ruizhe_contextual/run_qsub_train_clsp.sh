@@ -13,8 +13,8 @@
 world_size=3
 
 #### Activate dev environments and call programs
-mamba activate /home/rhuang/mambaforge/envs/efrat
-# mamba activate /home/rhuang/mambaforge/envs/efrat2
+# mamba activate /home/rhuang/mambaforge/envs/efrat
+mamba activate /home/rhuang/mambaforge/envs/efrat2
 export PYTHONPATH=/export/fs04/a12/rhuang/k2/k2/python:$PYTHONPATH # for `import k2`
 export PYTHONPATH=/export/fs04/a12/rhuang/k2/build/temp.linux-x86_64-cpython-38/lib/:$PYTHONPATH # for `import _k2`
 # export PYTHONPATH=/export/fs04/a12/rhuang/icefall_align/:$PYTHONPATH
@@ -61,8 +61,11 @@ nvidia-smi
 #   --master-port 12535 \
 #   --start-epoch 2
 
-# context_n_words=100
-# max_duration=400
+context_n_words=100
+max_duration=100
+# context_n_words=500
+# max_duration=100
+
 # path_to_pretrained_asr_model=/exp/rhuang/librispeech/pretrained2/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/
 # exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${context_n_words}
 # mkdir -p $exp_dir
@@ -71,11 +74,6 @@ nvidia-smi
 # fi
 
 # continue training from the wrong model
-context_n_words=100
-max_duration=200
-# context_n_words=500
-# max_duration=100
-
 exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${context_n_words}_continue
 mkdir -p $exp_dir
 ln -s /export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/pruned_transducer_stateless7_context/exp/exp_libri_full_wronglower/epoch-30.pt \

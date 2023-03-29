@@ -14,12 +14,21 @@ class ContextGenerator(torch.utils.data.Dataset):
         context_size: int = 100,
         is_predefined: bool = False,
         keep_ratio: float = 1.0,
+        is_full_context: bool = False,
     ):
         self.sp = sp
         self.path_is21_deep_bias = path_is21_deep_bias
         self.context_size = context_size
         self.is_predefined = is_predefined
         self.keep_ratio = keep_ratio
+        self.is_full_context = is_full_context   # use all words (rare or common) in the context
+
+        logging.info(f"""
+            context_size={context_size},
+            is_predefined={is_predefined},
+            keep_ratio={keep_ratio},
+            is_full_context={is_full_context},
+        """)
 
         self.all_rare_words2pieces = None
         self.common_words = None
@@ -40,29 +49,41 @@ class ContextGenerator(torch.utils.data.Dataset):
         if is_predefined:
             def read_ref_biasing_list(filename):
                 biasing_list = dict()
+                all_cnt = 0
+                rare_cnt = 0
                 with open(filename, "r") as fin:
                     for line in fin:
-                        line = line.strip()
+                        line = line.strip().upper()
                         if len(line) == 0:
                             continue
                         line = line.split("\t")
                         uid, ref_text, ref_rare_words, context_rare_words = line
                         context_rare_words = ast.literal_eval(context_rare_words)
-                        biasing_list[uid] = [w.upper() for w in context_rare_words]
-                return biasing_list
+                        biasing_list[uid] = [w for w in context_rare_words]
+                        # assert len(biasing_list[uid]) == self.context_size, (uid, len(biasing_list[uid]), self.context_size)
+                        if len(biasing_list[uid]) != self.context_size:
+                            # logging.warning(f"{(filename, uid, len(biasing_list[uid]), self.context_size)}")
+                            pass
+
+                        ref_rare_words = ast.literal_eval(ref_rare_words)
+                        ref_text = ref_text.split()
+                        all_cnt += len(ref_text)
+                        rare_cnt += len(ref_rare_words)
+                return biasing_list, rare_cnt/all_cnt
                     
-            self.test_clean_biasing_list = \
+            self.test_clean_biasing_list, ratio_clean = \
                 read_ref_biasing_list(self.path_is21_deep_bias / f"ref/test-clean.biasing_{context_size}.tsv")
-            self.test_other_biasing_list = \
+            self.test_other_biasing_list, ratio_other = \
                 read_ref_biasing_list(self.path_is21_deep_bias / f"ref/test-other.biasing_{context_size}.tsv")
 
-            logging.info(f"Number of utterances in test_clean_biasing_list: {len(self.test_clean_biasing_list)}")
-            logging.info(f"Number of utterances in test_other_biasing_list: {len(self.test_other_biasing_list)}")
+            logging.info(f"Number of utterances in test_clean_biasing_list: {len(self.test_clean_biasing_list)}, rare ratio={ratio_clean:.2f}")
+            logging.info(f"Number of utterances in test_other_biasing_list: {len(self.test_other_biasing_list)}, rare ratio={ratio_other:.2f}")
 
     def get_context_word_list(
         self,
         batch: dict,
     ):
+        # import pdb; pdb.set_trace()
         if self.is_predefined:
             return self.get_context_word_list_predefined(batch=batch)
         else:
@@ -83,7 +104,7 @@ class ContextGenerator(torch.utils.data.Dataset):
         for text in texts:
             rare_words = []
             for word in text.split():
-                if word not in self.common_words:
+                if self.is_full_context or word not in self.common_words:
                     rare_words.append(word)
                     if word not in self.all_rare_words2pieces:
                         self.all_rare_words2pieces[word] = self.sp.encode(word, out_type=int)
@@ -107,6 +128,7 @@ class ContextGenerator(torch.utils.data.Dataset):
             rare_words_pieces = [self.all_rare_words2pieces[w] for w in rare_words]
             max_pieces_len = max(max_pieces_len, max(len(pieces) for pieces in rare_words_pieces))
             rare_words_pieces_list.append(rare_words_pieces)
+        assert distractors_pos == len(distractors)
 
         word_list = []
         word_lengths = []

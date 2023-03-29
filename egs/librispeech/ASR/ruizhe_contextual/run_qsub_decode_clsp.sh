@@ -5,7 +5,7 @@
 #$ -j y -o ruizhe_contextual/log/$JOB_NAME-$JOB_ID.out
 #$ -M ruizhe@jhu.edu
 #$ -m e
-#$ -l ram_free=16G,mem_free=16G,gpu=1,hostname=!b*&!c10*&!c22*&!c09*
+#$ -l ram_free=16G,mem_free=16G,gpu=1,hostname=!b*&!c21*
 #$ -q g.q
 
 # &!octopod*
@@ -39,29 +39,50 @@ hostname
 python3 -c "import torch; print(torch.__version__)"
 nvidia-smi
 
+####################################
+# modified_beam_search
+####################################
+
+context_n_words=100
+# exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${context_n_words}_continue
+exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_wronglower/
+
+epochs=11
+avgs=1
+use_averaged_model=false
+
+# download model from coe
+# mkdir -p $exp_dir
+# scp -r rhuang@test1.hltcoe.jhu.edu:/exp/rhuang/icefall_latest/egs/librispeech/ASR/pruned_transducer_stateless7_context/exp/exp_libri_full_c100_continue/epoch-7.pt \
+#   /export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/${exp_dir}/.
+
 # greedy_search fast_beam_search
-# for m in modified_beam_search ; do
-#   for epoch in 13; do
-#     for avg in 4; do
-#       ./pruned_transducer_stateless7_context/decode.py \
-#           --epoch $epoch \
-#           --avg $avg \
-#           --use-averaged-model true \
-#           --exp-dir ./pruned_transducer_stateless7_context/exp/exp_libri_full \
-#           --feedforward-dims  "1024,1024,2048,2048,1024" \
-#           --max-duration 600 \
-#           --decoding-method $m \
-#           --context-dir "data/fbai-speech/is21_deep_bias/" \
-#           --context-n-words 100 \
-#           --keep-ratio 1.0
-#     done
-#   done
-# done
+for m in modified_beam_search ; do
+  for epoch in $epochs; do
+    for avg in $avgs; do
+      ./pruned_transducer_stateless7_context/decode.py \
+          --epoch $epoch \
+          --avg $avg \
+          --use-averaged-model $use_averaged_model \
+          --exp-dir $exp_dir \
+          --feedforward-dims  "1024,1024,2048,2048,1024" \
+          --max-duration 600 \
+          --decoding-method $m \
+          --context-dir "data/fbai-speech/is21_deep_bias/" \
+          --context-n-words $context_n_words \
+          --keep-ratio 1.0
+    done
+  done
+done
 
 # On CLSP grid:
 # cd /export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR
 # for m in modified_beam_search ; do   for epoch in 10; do     for avg in 1; do       ./pruned_transducer_stateless7_context/decode.py           --epoch $epoch           --avg $avg           --use-averaged-model 0           --exp-dir ./pruned_transducer_stateless7_context/exp/exp_libri_full           --feedforward-dims  "1024,1024,2048,2048,1024"           --max-duration 400           --decoding-method $m;     done;   done; done
 # /export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/pruned_transducer_stateless7_context/exp/exp_libri_full/modified_beam_search/log-decode-epoch-10-avg-1-modified_beam_search-beam-size-4-2023-03-27-17-25-08
+
+####################################
+# LODR
+####################################
 
 # path_to_pretrained_asr_model="/export/fs04/a12/rhuang/deep_smoothing/data_librispeech/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/"
 # ln -s $path_to_pretrained_asr_model/exp/pretrained.pt $path_to_pretrained_asr_model/exp/epoch-999.pt
@@ -76,15 +97,13 @@ lm_type="rnn"
 
 tokens_ngram_order=2
 for m in modified_beam_search_LODR ; do
-  for epoch in 26; do
-    for avg in 10; do
-  # for epoch in 24; do
-  #   for avg in 1; do
+  for epoch in $epochs; do
+    for avg in $avgs; do
       ./pruned_transducer_stateless7_context/decode.py \
           --epoch $epoch \
           --avg $avg \
-          --use-averaged-model true \
-          --exp-dir pruned_transducer_stateless7_context/exp/exp_libri_full \
+          --use-averaged-model $use_averaged_model \
+          --exp-dir $exp_dir \
           --lang-dir data/lang_bpe_500 \
           --max-duration 600 \
           --decoding-method $m \
@@ -101,7 +120,7 @@ for m in modified_beam_search_LODR ; do
           --tokens-ngram $tokens_ngram_order \
           --ngram-lm-scale -0.16 \
           --context-dir "data/fbai-speech/is21_deep_bias/" \
-          --context-n-words 100 \
+          --context-n-words $context_n_words \
           --keep-ratio 1.0
     done
   done

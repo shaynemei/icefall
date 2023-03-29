@@ -95,3 +95,26 @@ export PYTHONPATH=/export/fs04/a12/rhuang/icefall_align2/:$PYTHONPATH
 source /home/gqin2/scripts/acquire-gpu 1
 
 
+mamba install transformers
+
+# get ratio of rare words
+python -c '''
+from lhotse import SupervisionSet
+from itertools import chain
+with open("data/fbai-speech/is21_deep_bias/words/common_words_5k.txt", "r") as fin:
+  common_words = set([l.strip().upper() for l in fin if len(l) > 0])  # a list of strings
+print(f"Number of common words: {len(common_words)}")
+sups1 = SupervisionSet.from_file("data/manifests/librispeech_supervisions_train-clean-100.jsonl.gz")
+sups2 = SupervisionSet.from_file("data/manifests/librispeech_supervisions_train-clean-360.jsonl.gz")
+sups3 = SupervisionSet.from_file("data/manifests/librispeech_supervisions_train-other-500.jsonl.gz")
+all_cnt = 0
+rare_cnt = 0 
+for sup in chain(sups1, sups2, sups3):
+  ws = sup.text.split()
+  rs = [w for w in ws if w not in common_words]
+  all_cnt += len(ws)
+  rare_cnt += len(rs)
+print(f"all_cnt={all_cnt}")
+print(f"rare_cnt={rare_cnt}")
+print(f"ratio={rare_cnt/all_cnt:.2f}")
+'''

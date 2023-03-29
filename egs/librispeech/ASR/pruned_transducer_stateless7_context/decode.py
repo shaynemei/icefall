@@ -518,6 +518,8 @@ def decode_one_batch(
     encoder_biasing_out = model.encoder_biasing_adapter.forward(encoder_out, contexts, contexts_mask)
     encoder_out = encoder_out + encoder_biasing_out
 
+    model.scratch_space = (contexts, contexts_mask, sp)
+
     hyps = []
 
     if params.decoding_method == "fast_beam_search":
@@ -1022,12 +1024,12 @@ def main():
     test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
     test_other_dl = librispeech.test_dataloaders(test_other_cuts)
 
-    # test_sets = ["test-clean", "test-other"]
-    # test_dl = [test_clean_dl, test_other_dl]
+    test_sets = ["test-clean", "test-other"]
+    test_dl = [test_clean_dl, test_other_dl]
     # test_sets = ["test-clean"]
     # test_dl = [test_clean_dl]
-    test_sets = ["test-other"]
-    test_dl = [test_other_dl]
+    # test_sets = ["test-other"]
+    # test_dl = [test_other_dl]
 
     logging.info("About to load context generator")
     params.context_dir = Path(params.context_dir)
