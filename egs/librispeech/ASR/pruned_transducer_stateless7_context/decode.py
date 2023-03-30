@@ -1021,6 +1021,12 @@ def main():
     test_clean_cuts = librispeech.test_clean_cuts()
     test_other_cuts = librispeech.test_other_cuts()
 
+    # from lhotse import CutSet
+    # test_clean_cuts = [c for c in test_clean_cuts][1400:1900]
+    # test_other_cuts = [c for c in test_other_cuts][1400:1900]
+    # test_clean_cuts = CutSet.from_cuts(test_clean_cuts)
+    # test_other_cuts = CutSet.from_cuts(test_other_cuts)
+
     test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
     test_other_dl = librispeech.test_dataloaders(test_other_cuts)
 

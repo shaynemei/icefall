@@ -942,7 +942,7 @@ def modified_beam_search(
 
     # import pdb; pdb.set_trace()
     contexts, contexts_mask, sp = model.scratch_space
-    unsorted_indices = packed_encoder_out.unsorted_indices.tolist()
+    sorted_indices = packed_encoder_out.sorted_indices.tolist()
 
     offset = 0
     finalized_B = []
@@ -974,7 +974,7 @@ def modified_beam_search(
 
         decoder_out = model.decoder(decoder_input, need_pad=False)
 
-        contexts_idx = [unsorted_indices[i_hyps] for i_hyps, hyps in enumerate(A) for hyp in hyps]
+        contexts_idx = [sorted_indices[i_hyps] for i_hyps, hyps in enumerate(A) for hyp in hyps]
         assert len(contexts_idx) == decoder_out.size(0), (len(contexts_idx), decoder_out.size(0))
         contexts_, contexts_mask_ = contexts[contexts_idx], contexts_mask[contexts_idx]
 
@@ -1946,7 +1946,7 @@ def modified_beam_search_LODR(
     encoder_out = model.joiner.encoder_proj(packed_encoder_out.data)
 
     contexts, contexts_mask = model.scratch_space
-    unsorted_indices = packed_encoder_out.unsorted_indices.tolist()
+    sorted_indices = packed_encoder_out.sorted_indices.tolist()
 
     offset = 0
     finalized_B = []
@@ -1978,7 +1978,7 @@ def modified_beam_search_LODR(
 
         decoder_out = model.decoder(decoder_input, need_pad=False)
 
-        contexts_idx = [unsorted_indices[i_hyps] for i_hyps, hyps in enumerate(A) for hyp in hyps]
+        contexts_idx = [sorted_indices[i_hyps] for i_hyps, hyps in enumerate(A) for hyp in hyps]
         assert len(contexts_idx) == decoder_out.size(0), (len(contexts_idx), decoder_out.size(0))
         contexts_, contexts_mask_ = contexts[contexts_idx], contexts_mask[contexts_idx]
 

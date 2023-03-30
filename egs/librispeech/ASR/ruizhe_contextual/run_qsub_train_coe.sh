@@ -67,7 +67,7 @@ max_duration=700
 # fi
 
 # continue training from the wrong model
-exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${context_n_words}_continue
+exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${context_n_words}_continue2
 mkdir -p $exp_dir
 ln -s /exp/rhuang/icefall_latest/egs/librispeech/ASR/pruned_transducer_stateless7_context/exp/exp_libri_full_lowerwrong/epoch-30.pt \
   $exp_dir/epoch-1.pt
