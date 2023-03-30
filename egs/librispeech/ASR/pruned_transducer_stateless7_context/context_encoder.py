@@ -31,6 +31,11 @@ class ContextEncoderLSTM(torch.nn.Module):
             output_dim
         )
 
+        # TODO: Do we need some relu layer?
+        # https://galhever.medium.com/sentiment-analysis-with-pytorch-part-4-lstm-bilstm-model-84447f6c4525
+        # self.relu = nn.ReLU()
+        # self.dropout = nn.Dropout(dropout)
+
     def forward(
         self, 
         x, 
@@ -44,7 +49,7 @@ class ContextEncoderLSTM(torch.nn.Module):
             lengths=lengths, 
             enforce_sorted=False
         )
-        out = self.rnn(out)
+        out = self.rnn(out)  # use default all zeros (h_0, c_0)
         return out
 
     def embed_contexts(
@@ -83,8 +88,16 @@ class ContextEncoderLSTM(torch.nn.Module):
         )[-1]  # Only the last layer
         h_1, h_2 = final_state[0], final_state[1]
         # X = h_1 + h_2                     # Add both states (needs different input size for first linear layer)
-        final_h = torch.cat((h_1, h_2), 1)  # Concatenate both states
+        final_h = torch.cat((h_1, h_2), dim=1)  # Concatenate both states
         final_h = self.linear(final_h)
+
+        # # hidden is stacked [forward_1, backward_1, forward_2, backward_2, ...]
+        # # outputs are always from the last layer.
+        # # hidden[-2, :, : ] is the last of the forwards RNN 
+        # # hidden[-1, :, : ] is the last of the backwards RNN
+        # h_1, h_2 = hn[-2, :, : ] , hn[-1, :, : ]
+        # final_h = torch.cat((h_1, h_2), dim=1)  # Concatenate both states
+        # final_h = self.linear(final_h)
 
         final_h = torch.split(final_h, num_words_per_utt)
         final_h = torch.nn.utils.rnn.pad_sequence(
@@ -97,7 +110,7 @@ class ContextEncoderLSTM(torch.nn.Module):
         # add one no-bias token
         no_bias_h = torch.zeros(final_h.shape[0], 1, final_h.shape[-1])
         no_bias_h = no_bias_h.to(final_h.device)
-        final_h = torch.cat((no_bias_h, final_h), 1)
+        final_h = torch.cat((no_bias_h, final_h), dim=1)
         # print(final_h)
 
         # https://stackoverflow.com/questions/53403306/how-to-batch-convert-sentence-lengths-to-masks-in-pytorch

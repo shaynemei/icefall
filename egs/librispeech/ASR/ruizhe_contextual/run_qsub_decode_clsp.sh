@@ -47,7 +47,7 @@ context_n_words=100
 # exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${context_n_words}_continue
 exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_wronglower/
 
-epochs=11
+epochs=26
 avgs=1
 use_averaged_model=false
 

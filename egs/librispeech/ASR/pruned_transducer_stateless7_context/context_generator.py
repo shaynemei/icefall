@@ -100,7 +100,6 @@ class ContextGenerator(torch.utils.data.Dataset):
         texts = batch["supervisions"]["text"]
 
         rare_words_list = []
-        distractors_cnt = 0
         for text in texts:
             rare_words = []
             for word in text.split():
@@ -109,21 +108,24 @@ class ContextGenerator(torch.utils.data.Dataset):
                     if word not in self.all_rare_words2pieces:
                         self.all_rare_words2pieces[word] = self.sp.encode(word, out_type=int)
             
+            rare_words = list(set(rare_words))  # deduplication
+
             if self.keep_ratio < 1.0 and len(rare_words) > 0:
                 rare_words = random.sample(rare_words, int(len(rare_words) * self.keep_ratio))
 
-            distractors_cnt += max(self.context_size - len(rare_words), 0)
             rare_words_list.append(rare_words)
         
-        distractors = random.sample(self.all_rare_words2pieces.keys(), distractors_cnt)  # TODO: actually the context should contain both rare and common words
+        distractors = random.sample(
+            self.all_rare_words2pieces.keys(), 
+            self.context_size * len(texts)
+        )  # TODO: actually the context should contain both rare and common words
         distractors_pos = 0
         rare_words_pieces_list = []
         max_pieces_len = 0
         for rare_words in rare_words_list:
-            n_distractors = max(self.context_size - len(rare_words), 0)
-            if n_distractors > 0:
-                rare_words.extend(distractors[distractors_pos: distractors_pos + n_distractors])
-                distractors_pos += n_distractors
+            rare_words.extend(distractors[distractors_pos: distractors_pos + self.context_size])
+            distractors_pos += self.context_size
+            # random.shuffle(rare_words)
 
             rare_words_pieces = [self.all_rare_words2pieces[w] for w in rare_words]
             max_pieces_len = max(max_pieces_len, max(len(pieces) for pieces in rare_words_pieces))

@@ -105,4 +105,4 @@ python pruned_transducer_stateless7_context/train.py \
 # context size 100 (trained from the wrong model)
 # /export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/ruizhe_contextual/log/train-3611947.out
 # /export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/ruizhe_contextual/log/train-3611979.out
-# 
+# /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10579608.out
