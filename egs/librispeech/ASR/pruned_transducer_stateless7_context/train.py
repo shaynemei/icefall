@@ -386,7 +386,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--context-n-words",
+        "--n-distractors",
         type=int,
         default=100,
         help="",
@@ -396,6 +396,13 @@ def get_parser():
         "--keep-ratio",
         type=float,
         default=1.0,
+        help="",
+    )
+
+    parser.add_argument(
+        "--is-full-context",
+        type=str2bool,
+        default=False,
         help="",
     )
 
@@ -617,8 +624,19 @@ def load_checkpoint_if_available(
         "best_train_loss",
         "best_valid_loss",
     ]
+    saved_params_hard_wired = {
+        "best_train_epoch": 28,
+        "best_valid_epoch": 30,
+        "batch_idx_train": 105240,
+        "best_train_loss": 0.15620702543731815,
+        "best_valid_loss": 0.1486564241859933,
+    }
     for k in keys:
-        params[k] = saved_params[k]
+        if k in saved_params:
+            params[k] = saved_params[k]
+        else:
+            params[k] = saved_params_hard_wired[k]
+        logging.info(f"{k}: {params[k]}")
 
     if params.start_batch > 0:
         if "cur_epoch" in saved_params:
@@ -1214,8 +1232,9 @@ def run(rank, world_size, args):
         path_is21_deep_bias=params.context_dir,
         sp=sp,
         is_predefined=False,
-        context_size=params.context_n_words,
+        n_distractors=params.n_distractors,
         keep_ratio=params.keep_ratio,
+        is_full_context=params.is_full_context,
     )
 
     if not params.print_diagnostics:

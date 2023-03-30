@@ -43,8 +43,8 @@ nvidia-smi
 # modified_beam_search
 ####################################
 
-context_n_words=100
-exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${context_n_words}_continue
+n_distractors=100
+exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_continue
 # exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_wronglower/
 
 epochs=26
@@ -69,7 +69,7 @@ for m in modified_beam_search ; do
           --max-duration 600 \
           --decoding-method $m \
           --context-dir "data/fbai-speech/is21_deep_bias/" \
-          --context-n-words $context_n_words \
+          --n-distractors $n_distractors \
           --keep-ratio 1.0
     done
   done
@@ -120,7 +120,7 @@ for m in modified_beam_search_LODR ; do
           --tokens-ngram $tokens_ngram_order \
           --ngram-lm-scale -0.16 \
           --context-dir "data/fbai-speech/is21_deep_bias/" \
-          --context-n-words $context_n_words \
+          --n-distractors $n_distractors \
           --keep-ratio 1.0
     done
   done

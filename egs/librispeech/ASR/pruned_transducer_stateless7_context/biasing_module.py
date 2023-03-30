@@ -25,6 +25,7 @@ class BiasingModule(torch.nn.Module):
         queries,
         contexts,
         contexts_mask,
+        need_weights=False,
     ):
         """
         Args:
@@ -46,11 +47,11 @@ class BiasingModule(torch.nn.Module):
             contexts,   # key
             contexts,   # value
             key_padding_mask=contexts_mask,
-            need_weights=False,
+            need_weights=need_weights,
         )
         output = self.proj_out(attn_output)
 
         # print(f"query={query.shape}")
         # print(f"value={contexts} value.shape={contexts.shape}")
         # print(f"attn_output_weights={attn_output_weights} attn_output_weights.shape={attn_output_weights.shape}")
-        return output
+        return output, attn_output_weights

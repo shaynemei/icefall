@@ -5,26 +5,27 @@ import sentencepiece as spm
 from typing import List
 import logging
 import ast
+import numpy as np
 
 class ContextGenerator(torch.utils.data.Dataset):
     def __init__(
         self, 
         path_is21_deep_bias: Path,
         sp: spm.SentencePieceProcessor,
-        context_size: int = 100,
+        n_distractors: int = 100,
         is_predefined: bool = False,
         keep_ratio: float = 1.0,
         is_full_context: bool = False,
     ):
         self.sp = sp
         self.path_is21_deep_bias = path_is21_deep_bias
-        self.context_size = context_size
+        self.n_distractors = n_distractors
         self.is_predefined = is_predefined
         self.keep_ratio = keep_ratio
         self.is_full_context = is_full_context   # use all words (rare or common) in the context
 
         logging.info(f"""
-            context_size={context_size},
+            n_distractors={n_distractors},
             is_predefined={is_predefined},
             keep_ratio={keep_ratio},
             is_full_context={is_full_context},
@@ -60,24 +61,28 @@ class ContextGenerator(torch.utils.data.Dataset):
                         uid, ref_text, ref_rare_words, context_rare_words = line
                         context_rare_words = ast.literal_eval(context_rare_words)
                         biasing_list[uid] = [w for w in context_rare_words]
-                        # assert len(biasing_list[uid]) == self.context_size, (uid, len(biasing_list[uid]), self.context_size)
-                        if len(biasing_list[uid]) != self.context_size:
-                            # logging.warning(f"{(filename, uid, len(biasing_list[uid]), self.context_size)}")
-                            pass
 
                         ref_rare_words = ast.literal_eval(ref_rare_words)
                         ref_text = ref_text.split()
                         all_cnt += len(ref_text)
                         rare_cnt += len(ref_rare_words)
-                return biasing_list, rare_cnt/all_cnt
+                return biasing_list, rare_cnt / all_cnt
                     
             self.test_clean_biasing_list, ratio_clean = \
-                read_ref_biasing_list(self.path_is21_deep_bias / f"ref/test-clean.biasing_{context_size}.tsv")
+                read_ref_biasing_list(self.path_is21_deep_bias / f"ref/test-clean.biasing_{n_distractors}.tsv")
             self.test_other_biasing_list, ratio_other = \
-                read_ref_biasing_list(self.path_is21_deep_bias / f"ref/test-other.biasing_{context_size}.tsv")
+                read_ref_biasing_list(self.path_is21_deep_bias / f"ref/test-other.biasing_{n_distractors}.tsv")
 
             logging.info(f"Number of utterances in test_clean_biasing_list: {len(self.test_clean_biasing_list)}, rare ratio={ratio_clean:.2f}")
             logging.info(f"Number of utterances in test_other_biasing_list: {len(self.test_other_biasing_list)}, rare ratio={ratio_other:.2f}")
+
+        # from itertools import chain
+        # for uid, context_rare_words in chain(self.test_clean_biasing_list.items(), self.test_other_biasing_list.items()):
+        #     for w in context_rare_words:
+        #         if self.all_rare_words2pieces:
+        #             pass
+        #         else:
+        #             logging.warning(f"new word: {w}")
 
     def get_context_word_list(
         self,
@@ -94,7 +99,7 @@ class ContextGenerator(torch.utils.data.Dataset):
         batch: dict,
     ):
         """
-        Generate context as a list of words for each utterance, given context_size.
+        Generate context biasing list as a list of words for each utterance
         Use keep_ratio to simulate the "imperfect" context which may not have 100% coverage of the ground truth words.
         """
         texts = batch["supervisions"]["text"]
@@ -115,17 +120,27 @@ class ContextGenerator(torch.utils.data.Dataset):
 
             rare_words_list.append(rare_words)
         
+        n_distractors = self.n_distractors
+        if n_distractors == -1:  # variable context list sizes
+            n_distractors_each = np.random.randint(low=80, high=300, size=len(texts))
+            distractors_cnt = n_distractors_each.sum()
+        else:
+            n_distractors_each = np.zeros(len(texts), int)
+            n_distractors_each[:] = self.n_distractors
+            distractors_cnt = n_distractors_each.sum()
+
         distractors = random.sample(
             self.all_rare_words2pieces.keys(), 
-            self.context_size * len(texts)
+            distractors_cnt
         )  # TODO: actually the context should contain both rare and common words
         distractors_pos = 0
         rare_words_pieces_list = []
         max_pieces_len = 0
-        for rare_words in rare_words_list:
-            rare_words.extend(distractors[distractors_pos: distractors_pos + self.context_size])
-            distractors_pos += self.context_size
+        for i, rare_words in enumerate(rare_words_list):
+            rare_words.extend(distractors[distractors_pos: distractors_pos + n_distractors_each[i]])
+            distractors_pos += n_distractors_each[i]
             # random.shuffle(rare_words)
+            # logging.info(rare_words)
 
             rare_words_pieces = [self.all_rare_words2pieces[w] for w in rare_words]
             max_pieces_len = max(max_pieces_len, max(len(pieces) for pieces in rare_words_pieces))
@@ -162,11 +177,12 @@ class ContextGenerator(torch.utils.data.Dataset):
             elif uid in self.test_other_biasing_list:
                 rare_words_list.append(self.test_other_biasing_list[uid])
             else:
-                logging.error(f"uid={uid} cannot find the predefined biasing list of size {self.context_size}")
+                logging.error(f"uid={uid} cannot find the predefined biasing list of size {self.n_distractors}")
         
         rare_words_pieces_list = []
         max_pieces_len = 0
         for rare_words in rare_words_list:
+            # logging.info(rare_words)
             rare_words_pieces = self.sp.encode(rare_words, out_type=int)
             max_pieces_len = max(max_pieces_len, max(len(pieces) for pieces in rare_words_pieces))
             rare_words_pieces_list.append(rare_words_pieces)

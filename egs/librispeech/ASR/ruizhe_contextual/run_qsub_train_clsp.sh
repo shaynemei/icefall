@@ -61,22 +61,26 @@ nvidia-smi
 #   --master-port 12535 \
 #   --start-epoch 2
 
-context_n_words=100
+n_distractors=100
 max_duration=100
-# context_n_words=500
+# n_distractors=500
 # max_duration=100
 
 # path_to_pretrained_asr_model=/exp/rhuang/librispeech/pretrained2/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/
-# exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${context_n_words}
+# exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}
 # mkdir -p $exp_dir
 # if [ ! -f $exp_dir/epoch-1.pt ]; then
 #   ln -s $path_to_pretrained_asr_model/exp/epoch-30.pt $exp_dir/epoch-1.pt
 # fi
 
 # continue training from the wrong model
-exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${context_n_words}_continue
+exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_continue3
 mkdir -p $exp_dir
-ln -s /export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/pruned_transducer_stateless7_context/exp/exp_libri_full_wronglower/epoch-30.pt \
+# ln -sf /export/fs04/a12/rhuang/deep_smoothing/data_librispeech/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/exp/epoch-30.pt \
+#   $exp_dir/epoch-1.pt
+# ln -s /export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/pruned_transducer_stateless7_context/exp/exp_libri_full_wronglower/epoch-30.pt \
+#   $exp_dir/epoch-1.pt
+ln -sf /export/fs04/a12/rhuang/deep_smoothing/data_librispeech/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/exp/pretrained.pt \
   $exp_dir/epoch-1.pt
 
 python pruned_transducer_stateless7_context/train.py \
@@ -93,4 +97,4 @@ python pruned_transducer_stateless7_context/train.py \
   --context-dir "data/fbai-speech/is21_deep_bias/" \
   --keep-ratio 1.0 \
   --start-epoch 2 \
-  --context-n-words $context_n_words
+  --n-distractors $n_distractors

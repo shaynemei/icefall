@@ -433,6 +433,14 @@ def get_parser():
         help="",
     )
 
+    parser.add_argument(
+        "--no-biasing",
+        type=str2bool,
+        default=False,
+        help=""".
+        """,
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -441,6 +449,7 @@ def get_parser():
 def decode_one_batch(
     params: AttributeDict,
     model: nn.Module,
+    context_generator: ContextGenerator,
     sp: spm.SentencePieceProcessor,
     batch: dict,
     word_table: Optional[k2.SymbolTable] = None,
@@ -514,9 +523,18 @@ def decode_one_batch(
     else:
         encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
 
-    contexts, contexts_mask = model.scratch_space
-    encoder_biasing_out = model.encoder_biasing_adapter.forward(encoder_out, contexts, contexts_mask)
-    encoder_out = encoder_out + encoder_biasing_out
+    word_list, word_lengths, num_words_per_utt = \
+        context_generator.get_context_word_list(batch)
+    word_list = word_list.to(device)
+    contexts, contexts_mask = model.context_encoder.embed_contexts(
+        word_list,
+        word_lengths,
+        num_words_per_utt,
+    )
+
+    encoder_biasing_out, attn = model.encoder_biasing_adapter.forward(encoder_out, contexts, contexts_mask)
+    if not model.no_biasing:
+        encoder_out = encoder_out + encoder_biasing_out
 
     model.scratch_space = (contexts, contexts_mask, sp)
 
@@ -716,20 +734,17 @@ def decode_dataset(
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
-
-        word_list, word_lengths, num_words_per_utt = \
-            context_generator.get_context_word_list(batch)
-        word_list = word_list.to(device)
-        contexts, contexts_mask = model.context_encoder.embed_contexts(
-            word_list,
-            word_lengths,
-            num_words_per_utt,
-        )
-        model.scratch_space = (contexts, contexts_mask)
+        # if "1998-29455-0019-602" in cut_ids:
+        #     logging.info(cut_ids)
+        #     logging.info(cut_ids.index("1998-29455-0019-602"))
+        #     # import pdb; pdb.set_trace()
+        # else:
+        #     continue
 
         hyps_dict = decode_one_batch(
             params=params,
             model=model,
+            context_generator=context_generator,
             sp=sp,
             decoding_graph=decoding_graph,
             word_table=word_table,
@@ -1022,10 +1037,15 @@ def main():
     test_other_cuts = librispeech.test_other_cuts()
 
     # from lhotse import CutSet
-    # test_clean_cuts = [c for c in test_clean_cuts][1400:1900]
-    # test_other_cuts = [c for c in test_other_cuts][1400:1900]
+    # test_clean_cuts = [c for c in test_clean_cuts][:500]
+    # test_other_cuts = [c for c in test_other_cuts][:500]
+    # # test_other_cuts1 = [c for c in test_other_cuts if c.id == "1998-29455-0019-602"]
+    # # test_other_cuts = test_other_cuts1 + [c for c in test_other_cuts][1700:1710]
     # test_clean_cuts = CutSet.from_cuts(test_clean_cuts)
     # test_other_cuts = CutSet.from_cuts(test_other_cuts)
+
+    # import random
+    # random.seed(10)
 
     test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
     test_other_dl = librispeech.test_dataloaders(test_other_cuts)
@@ -1042,10 +1062,11 @@ def main():
     context_generator = ContextGenerator(
         path_is21_deep_bias=params.context_dir,
         sp=sp,
-        is_predefined=False,
+        is_predefined=True,
         context_size=params.context_n_words,
         keep_ratio=params.keep_ratio,
     )
+    model.no_biasing = params.no_biasing
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(

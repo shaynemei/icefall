@@ -80,6 +80,7 @@ class Transducer(nn.Module):
 
         # For temporary convenience
         self.scratch_space = None
+        self.no_biasing = None
 
     def forward(
         self,
@@ -148,7 +149,7 @@ class Transducer(nn.Module):
         # assert x.size(0) == contexts.size(0) == contexts_mask.size(0)
         # assert contexts.ndim == 3
         # assert contexts_mask.ndim == 2
-        encoder_biasing_out = self.encoder_biasing_adapter.forward(encoder_out, contexts, contexts_mask)
+        encoder_biasing_out, attn = self.encoder_biasing_adapter.forward(encoder_out, contexts, contexts_mask)
         encoder_out = encoder_out + encoder_biasing_out
 
         # Now for the decoder, i.e., the prediction network
@@ -164,7 +165,7 @@ class Transducer(nn.Module):
         # decoder_out: [B, S + 1, decoder_dim]
         decoder_out = self.decoder(sos_y_padded)
 
-        decoder_biasing_out = self.decoder_biasing_adapter.forward(decoder_out, contexts, contexts_mask)
+        decoder_biasing_out, attn = self.decoder_biasing_adapter.forward(decoder_out, contexts, contexts_mask)
         decoder_out = decoder_out + decoder_biasing_out
 
         # Note: y does not start with SOS

@@ -57,7 +57,7 @@ for m in modified_beam_search ; do
           --max-duration 600 \
           --decoding-method $m \
           --context-dir "data/fbai-speech/is21_deep_bias/" \
-          --context-n-words 100 \
+          --n-distractors 100 \
           --keep-ratio 1.0
     done
   done

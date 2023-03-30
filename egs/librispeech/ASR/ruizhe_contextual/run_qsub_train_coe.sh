@@ -54,23 +54,37 @@ echo "hostname: `hostname`"
 #   --feedforward-dims  "1024,1024,2048,2048,1024" \
 #   --master-port 12535
 
-context_n_words=100
+n_distractors=100
 max_duration=700
-# context_n_words=500
+# n_distractors=500
 # max_duration=100
 
+# _continue: continue with full context from epoch-30.pt
+# _continue2: continue with random context from _continue
+# _continue3: continue with full context from pretrained.pt
+
+
+# Continue training from epoch-30.pt -- this is not optimal!
 # path_to_pretrained_asr_model=/exp/rhuang/librispeech/pretrained2/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/
-# exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${context_n_words}
+# exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}
 # mkdir -p $exp_dir
 # if [ ! -f $exp_dir/epoch-1.pt ]; then
 #   ln -s $path_to_pretrained_asr_model/exp/epoch-30.pt $exp_dir/epoch-1.pt
 # fi
 
-# continue training from the wrong model
-exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${context_n_words}_continue2
+# Continue training from pretrained.pt
+path_to_pretrained_asr_model=/exp/rhuang/librispeech/pretrained2/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/
+exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_continue3
 mkdir -p $exp_dir
-ln -s /exp/rhuang/icefall_latest/egs/librispeech/ASR/pruned_transducer_stateless7_context/exp/exp_libri_full_lowerwrong/epoch-30.pt \
-  $exp_dir/epoch-1.pt
+if [ ! -f $exp_dir/epoch-31.pt ]; then
+  ln -s $path_to_pretrained_asr_model/exp/pretrained.pt $exp_dir/epoch-31.pt
+fi
+
+# Continue training from the wrong model
+# exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_continue3
+# mkdir -p $exp_dir
+# ln -s /exp/rhuang/icefall_latest/egs/librispeech/ASR/pruned_transducer_stateless7_context/exp/exp_libri_full_lowerwrong/epoch-30.pt \
+#   $exp_dir/epoch-1.pt
 
 python pruned_transducer_stateless7_context/train.py \
   --world-size 4 \
@@ -85,8 +99,9 @@ python pruned_transducer_stateless7_context/train.py \
   --base-lr 0.1 \
   --context-dir "data/fbai-speech/is21_deep_bias/" \
   --keep-ratio 1.0 \
-  --start-epoch 2 \
-  --context-n-words $context_n_words
+  --start-epoch 32 \
+  --n-distractors $n_distractors \
+  --is-full-context true
 
 # --start-batch 
 
@@ -106,3 +121,6 @@ python pruned_transducer_stateless7_context/train.py \
 # /export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/ruizhe_contextual/log/train-3611947.out
 # /export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/ruizhe_contextual/log/train-3611979.out
 # /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10579608.out
+# /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10580874.out
+
+
