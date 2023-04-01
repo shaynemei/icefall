@@ -434,7 +434,15 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--no-biasing",
+        "--no-encoder-biasing",
+        type=str2bool,
+        default=False,
+        help=""".
+        """,
+    )
+
+    parser.add_argument(
+        "--no-decoder-biasing",
         type=str2bool,
         default=False,
         help=""".
@@ -547,7 +555,7 @@ def decode_one_batch(
     )
 
     encoder_biasing_out, attn = model.encoder_biasing_adapter.forward(encoder_out, contexts, contexts_mask)
-    if not model.no_biasing:
+    if not model.no_encoder_biasing:
         encoder_out = encoder_out + encoder_biasing_out
 
     model.scratch_space = (contexts, contexts_mask, sp)
@@ -823,6 +831,34 @@ def save_results(
         note = ""
     logging.info(s)
 
+def rare_word_score(
+    params: AttributeDict,
+    test_set_name: str,
+    results_dict: Dict[str, List[Tuple[str, List[str], List[str]]]],
+    cuts,
+):
+    from collections import namedtuple
+    from score import main as score_main
+
+    logging.info(f"test_set_name: {test_set_name}")
+    cuts = cuts[0]
+
+    args = namedtuple('A', ['refs', 'hyps', 'lenient'])
+    args.refs = params.context_dir / f"ref/{test_set_name}.biasing_{params.n_distractors}.tsv"
+    args.lenient = True
+
+    for key, results in results_dict.items():
+        logging.info(f"{key}")
+        args.hyps = dict()
+
+        for cut_id, ref, hyp in results:
+            # import pdb; pdb.set_trace()
+            u_id = cuts[cut_id].supervisions[0].id
+            hyp = " ".join(hyp)
+            hyp = hyp.lower()
+            args.hyps[u_id] = hyp
+        
+        score_main(args)
 
 @torch.no_grad()
 def main():
@@ -1087,7 +1123,8 @@ def main():
         keep_ratio=params.keep_ratio,
         is_full_context=params.is_full_context,
     )
-    model.no_biasing = params.no_biasing
+    model.no_encoder_biasing = params.no_encoder_biasing
+    model.no_decoder_biasing = params.no_decoder_biasing
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
@@ -1107,6 +1144,13 @@ def main():
             params=params,
             test_set_name=test_set,
             results_dict=results_dict,
+        )
+
+        rare_word_score(
+            params=params,
+            test_set_name=test_set,
+            results_dict=results_dict,
+            cuts=test_dl.sampler.cuts,
         )
 
     logging.info("Done!")
