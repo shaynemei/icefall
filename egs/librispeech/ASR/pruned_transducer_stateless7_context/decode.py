@@ -420,7 +420,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--context-n-words",
+        "--n-distractors",
         type=int,
         default=100,
         help="",
@@ -439,6 +439,20 @@ def get_parser():
         default=False,
         help=""".
         """,
+    )
+
+    parser.add_argument(
+        "--is-full-context",
+        type=str2bool,
+        default=False,
+        help="",
+    )
+
+    parser.add_argument(
+        "--is-predefined",
+        type=str2bool,
+        default=False,
+        help="",
     )
 
     add_model_arguments(parser)
@@ -1033,6 +1047,8 @@ def main():
     args.return_cuts = True
     librispeech = LibriSpeechAsrDataModule(args)
 
+    dev_clean_cuts = librispeech.dev_clean_cuts()
+    dev_other_cuts = librispeech.dev_other_cuts()
     test_clean_cuts = librispeech.test_clean_cuts()
     test_other_cuts = librispeech.test_other_cuts()
 
@@ -1047,9 +1063,13 @@ def main():
     # import random
     # random.seed(10)
 
+    dev_clean_dl = librispeech.test_dataloaders(dev_clean_cuts)
+    dev_other_dl = librispeech.test_dataloaders(dev_other_cuts)
     test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
     test_other_dl = librispeech.test_dataloaders(test_other_cuts)
 
+    # test_sets = ["dev-clean", "dev-other", "test-clean", "test-other"]
+    # test_dl = [dev_clean_dl, dev_other_dl, test_clean_dl, test_other_dl]
     test_sets = ["test-clean", "test-other"]
     test_dl = [test_clean_dl, test_other_dl]
     # test_sets = ["test-clean"]
@@ -1062,9 +1082,10 @@ def main():
     context_generator = ContextGenerator(
         path_is21_deep_bias=params.context_dir,
         sp=sp,
-        is_predefined=True,
-        context_size=params.context_n_words,
+        is_predefined=params.is_predefined,
+        n_distractors=params.n_distractors,
         keep_ratio=params.keep_ratio,
+        is_full_context=params.is_full_context,
     )
     model.no_biasing = params.no_biasing
 

@@ -94,6 +94,9 @@ class ContextGenerator(torch.utils.data.Dataset):
         else:
             return self.get_context_word_list_random(batch=batch)
 
+    def discard_some_common_words(words, keep_ratio):
+        pass
+
     def get_context_word_list_random(
         self,
         batch: dict,

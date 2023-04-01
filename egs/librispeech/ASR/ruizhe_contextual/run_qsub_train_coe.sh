@@ -6,7 +6,7 @@
 #$ -M ruizhe@jhu.edu
 #$ -m e
 #$ -l mem_free=20G,h_rt=600:00:00,gpu=4
-#$ -q gpu.q@@v100
+#$ -q gpu.q@@rtx
 
 # #$ -q gpu.q@@v100
 # #$ -q gpu.q@@rtx
@@ -76,8 +76,8 @@ max_duration=700
 path_to_pretrained_asr_model=/exp/rhuang/librispeech/pretrained2/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/
 exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_continue3
 mkdir -p $exp_dir
-if [ ! -f $exp_dir/epoch-31.pt ]; then
-  ln -s $path_to_pretrained_asr_model/exp/pretrained.pt $exp_dir/epoch-31.pt
+if [ ! -f $exp_dir/epoch-1.pt ]; then
+  ln -s $path_to_pretrained_asr_model/exp/pretrained.pt $exp_dir/epoch-1.pt
 fi
 
 # Continue training from the wrong model
@@ -88,7 +88,6 @@ fi
 
 python pruned_transducer_stateless7_context/train.py \
   --world-size 4 \
-  --num-epochs 30 \
   --full-libri true \
   --use-fp16 true \
   --max-duration $max_duration \
@@ -99,9 +98,12 @@ python pruned_transducer_stateless7_context/train.py \
   --base-lr 0.1 \
   --context-dir "data/fbai-speech/is21_deep_bias/" \
   --keep-ratio 1.0 \
-  --start-epoch 32 \
-  --n-distractors $n_distractors \
-  --is-full-context true
+  --start-epoch 2 \
+  --num-epochs 30 \
+  --n-distractors $n_distractors
+
+# --n-distractors 0 \
+# --is-full-context true
 
 # --start-batch 
 
@@ -120,7 +122,11 @@ python pruned_transducer_stateless7_context/train.py \
 # context size 100 (trained from the wrong model)
 # /export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/ruizhe_contextual/log/train-3611947.out
 # /export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/ruizhe_contextual/log/train-3611979.out
-# /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10579608.out
-# /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10580874.out
+# /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10579608.out  # continue training from the full context model
+# /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10580874.out  # continue2, but use context_generator matching fbai_is_21 biasing list
+# /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10581036.out  # continue3, trained from pretrained.pt
+# /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10581683.out
 
-
+# continue3:
+# - Stage1:   --start-epoch 2 --num-epochs 30 --n-distractors 0 --is-full-context true
+#             --base-lr 0.15 => 0.1 => 0.05

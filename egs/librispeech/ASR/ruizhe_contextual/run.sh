@@ -82,6 +82,7 @@ scp -r rhuang@login.clsp.jhu.edu:/export/fs04/a12/rhuang/icefall_align2/egs/libr
 scp -r rhuang@login.clsp.jhu.edu:/export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/pruned_transducer_stateless2/beam_search.py pruned_transducer_stateless2/.
 
 scp -r pruned_transducer_stateless7_context/exp/exp_libri_full/epoch-{1,2}*.pt rhuang@login.clsp.jhu.edu:/export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/pruned_transducer_stateless7_context/exp/exp_libri_full/.
+scp -r pruned_transducer_stateless7_context/exp/exp_libri_full_c100_continue3/epoch-10.pt rhuang@login.clsp.jhu.edu:/export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/pruned_transducer_stateless7_context/exp/exp_libri_full_c100_continue3/.
 
 # clsp grid initialize
 # ql
@@ -118,3 +119,59 @@ print(f"all_cnt={all_cnt}")
 print(f"rare_cnt={rare_cnt}")
 print(f"ratio={rare_cnt/all_cnt:.2f}")
 '''
+
+
+
+
+5.54
+
+5.27
+5.29
+5.39
+5.4
+5.27
+5.42
+5.28
+5.3
+5.32
+5.34
+5.37
+5.51
+5.35
+5.37
+5.29
+5.36
+5.37
+5.37
+5.2
+5.28
+5.44
+5.33
+5.42
+5.36
+5.37
+5.27
+5.32
+5.47
+5.32
+5.36
+5.39
+5.35
+5.56
+5.44
+
+
+cd /export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/
+
+hyp_in=pruned_transducer_stateless7_context/exp/exp_libri_full_c100_continue3/modified_beam_search_LODR/recogs-test-clean-epoch-17-avg-1-modified_beam_search_LODR-beam-size-4-rnnlm-lm-scale-0.4-LODR-2gram-scale--0.16.txt
+hyp=pruned_transducer_stateless7_context/exp/exp_libri_full_c100_continue3/modified_beam_search_LODR/recogs-test-clean-epoch-17-avg-1-modified_beam_search_LODR-beam-size-4-rnnlm-lm-scale-0.4-LODR-2gram-scale--0.16.hyp.txt
+ref=data/fbai-speech/is21_deep_bias/ref/test-clean.biasing_100.tsv
+python ruizhe_contextual/recogs_to_text.py \
+  --cuts data/fbank/librispeech_cuts_test-clean.jsonl.gz \
+  --input $hyp_in \
+  --out $hyp
+
+wc $ref $hyp
+python data/fbai-speech/is21_deep_bias/score.py \
+  --refs $ref \
+  --hyps $hyp

@@ -624,17 +624,26 @@ def load_checkpoint_if_available(
         "best_train_loss",
         "best_valid_loss",
     ]
+    # saved_params_hard_wired = {
+    #     "best_train_epoch": 28,
+    #     "best_valid_epoch": 30,
+    #     "batch_idx_train": 105240,
+    #     "best_train_loss": 0.15620702543731815,
+    #     "best_valid_loss": 0.1486564241859933,
+    # }
+
     saved_params_hard_wired = {
-        "best_train_epoch": 28,
-        "best_valid_epoch": 30,
-        "batch_idx_train": 105240,
-        "best_train_loss": 0.15620702543731815,
-        "best_valid_loss": 0.1486564241859933,
+        "best_train_epoch": 10,
+        "best_valid_epoch": 10,
+        "batch_idx_train": 140313,
+        "best_train_loss": 0.0841903351392453,
+        "best_valid_loss": 0.07505495531675765,
     }
+
     for k in keys:
         if k in saved_params:
             params[k] = saved_params[k]
-        else:
+        elif params.start_epoch == 2:
             params[k] = saved_params_hard_wired[k]
         logging.info(f"{k}: {params[k]}")
 

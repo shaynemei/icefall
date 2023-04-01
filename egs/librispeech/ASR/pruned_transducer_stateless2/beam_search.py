@@ -978,7 +978,7 @@ def modified_beam_search(
         assert len(contexts_idx) == decoder_out.size(0), (len(contexts_idx), decoder_out.size(0))
         contexts_, contexts_mask_ = contexts[contexts_idx], contexts_mask[contexts_idx]
 
-        decoder_biasing_out, attn = model.decoder_biasing_adapter.forward(decoder_out, contexts_, contexts_mask_, need_weights=True)
+        decoder_biasing_out, attn = model.decoder_biasing_adapter.forward(decoder_out, contexts_, contexts_mask_)  # need_weights=True
         if not model.no_biasing:
             decoder_out = decoder_out + decoder_biasing_out
         decoder_out = decoder_out.unsqueeze(1)
@@ -1946,7 +1946,7 @@ def modified_beam_search_LODR(
 
     encoder_out = model.joiner.encoder_proj(packed_encoder_out.data)
 
-    contexts, contexts_mask = model.scratch_space
+    contexts, contexts_mask, sp = model.scratch_space
     sorted_indices = packed_encoder_out.sorted_indices.tolist()
 
     offset = 0
@@ -1983,8 +1983,9 @@ def modified_beam_search_LODR(
         assert len(contexts_idx) == decoder_out.size(0), (len(contexts_idx), decoder_out.size(0))
         contexts_, contexts_mask_ = contexts[contexts_idx], contexts_mask[contexts_idx]
 
-        decoder_biasing_out = model.decoder_biasing_adapter.forward(decoder_out, contexts_, contexts_mask_)
-        decoder_out = decoder_out + decoder_biasing_out
+        decoder_biasing_out, attn = model.decoder_biasing_adapter.forward(decoder_out, contexts_, contexts_mask_)  # need_weights=True
+        if not model.no_biasing:
+            decoder_out = decoder_out + decoder_biasing_out
         decoder_out = decoder_out.unsqueeze(1)
 
         decoder_out = model.joiner.decoder_proj(decoder_out)
