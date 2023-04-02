@@ -130,3 +130,11 @@ python pruned_transducer_stateless7_context/train.py \
 # continue3:
 # - Stage1:   --start-epoch 2 --num-epochs 30 --n-distractors 0 --is-full-context true
 #             --base-lr 0.15 => 0.1 => 0.05
+#           https://tensorboard.dev/experiment/7PzL4cpxTgGup6Vp15FqMA/#scalars
+# - Stage2:   --start-epoch 2 --num-epochs 30 --base-lr 0.1=>0.06 --n-distractors 100
+#           /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10583140.out
+#           https://tensorboard.dev/experiment/9lnyyTJDR9mlf0fwCLL12w/#scalars
+#
+# - Stage2:   --start-epoch 2 --num-epochs 30 --base-lr 0.1=>0.06 --n-distractors -1 (80,1000)
+#           /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10583446.out
+#           https://tensorboard.dev/experiment/zyVJCxbDQrm2kG9pwbqVWQ/

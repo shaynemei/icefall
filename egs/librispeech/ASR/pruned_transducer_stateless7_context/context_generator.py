@@ -125,7 +125,7 @@ class ContextGenerator(torch.utils.data.Dataset):
         
         n_distractors = self.n_distractors
         if n_distractors == -1:  # variable context list sizes
-            n_distractors_each = np.random.randint(low=80, high=300, size=len(texts))
+            n_distractors_each = np.random.randint(low=80, high=1000, size=len(texts))
             distractors_cnt = n_distractors_each.sum()
         else:
             n_distractors_each = np.zeros(len(texts), int)
@@ -146,7 +146,8 @@ class ContextGenerator(torch.utils.data.Dataset):
             # logging.info(rare_words)
 
             rare_words_pieces = [self.all_rare_words2pieces[w] for w in rare_words]
-            max_pieces_len = max(max_pieces_len, max(len(pieces) for pieces in rare_words_pieces))
+            if len(rare_words_pieces) > 0:
+                max_pieces_len = max(max_pieces_len, max(len(pieces) for pieces in rare_words_pieces))
             rare_words_pieces_list.append(rare_words_pieces)
         assert distractors_pos == len(distractors)
 

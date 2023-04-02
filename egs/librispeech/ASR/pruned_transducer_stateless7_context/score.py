@@ -235,7 +235,7 @@ def main(args):
         logger.info("Loaded %d hypothesis utts from %s", len(hyps), args.hyps)
     elif type(args.hyps) is dict:
         hyps = args.hyps
-        logger.info("Loaded %d hypothesis utts from %s", len(hyps))
+        logger.info("Loaded %d hypothesis utts", len(hyps))
 
     if not args.lenient:
         for uttid in refs:

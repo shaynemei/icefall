@@ -839,26 +839,33 @@ def rare_word_score(
 ):
     from collections import namedtuple
     from score import main as score_main
+    from lhotse import CutSet
 
     logging.info(f"test_set_name: {test_set_name}")
     cuts = cuts[0]
+    cuts = [c for c in cuts]
+    cuts = CutSet.from_cuts(cuts)
 
     args = namedtuple('A', ['refs', 'hyps', 'lenient'])
-    args.refs = params.context_dir / f"ref/{test_set_name}.biasing_{params.n_distractors}.tsv"
+    if params.n_distractors > 0:
+        args.refs = params.context_dir / f"ref/{test_set_name}.biasing_{params.n_distractors}.tsv"
+    else:
+        args.refs = params.context_dir / f"ref/{test_set_name}.biasing_100.tsv"
     args.lenient = True
 
     for key, results in results_dict.items():
+        print()
         logging.info(f"{key}")
         args.hyps = dict()
 
         for cut_id, ref, hyp in results:
-            # import pdb; pdb.set_trace()
             u_id = cuts[cut_id].supervisions[0].id
             hyp = " ".join(hyp)
             hyp = hyp.lower()
             args.hyps[u_id] = hyp
         
         score_main(args)
+        print()
 
 @torch.no_grad()
 def main():
