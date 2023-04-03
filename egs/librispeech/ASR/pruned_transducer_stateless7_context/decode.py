@@ -156,7 +156,11 @@ from beam_search import (
     modified_beam_search_ngram_rescoring,
 )
 from train import add_model_arguments, get_params, get_transducer_model
-from context_generator import ContextGenerator
+from egs.librispeech.ASR.pruned_transducer_stateless7_context.context_collector import ContextCollector
+from egs.librispeech.ASR.pruned_transducer_stateless7_context.context_encoder import ContextEncoder
+from egs.librispeech.ASR.pruned_transducer_stateless7_context.context_encoder_lstm import ContextEncoderLSTM
+from egs.librispeech.ASR.pruned_transducer_stateless7_context.context_encoder_pretrained import ContextEncoderPretrained
+from egs.librispeech.ASR.pruned_transducer_stateless7_context.bert_encoder import BertEncoder
 
 from icefall import LmScorer, NgramLm
 from icefall.checkpoint import (
@@ -463,6 +467,13 @@ def get_parser():
         help="",
     )
 
+    parser.add_argument(
+        "--is-pretrained-context-encoder",
+        type=str2bool,
+        default=False,
+        help="",
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -471,7 +482,7 @@ def get_parser():
 def decode_one_batch(
     params: AttributeDict,
     model: nn.Module,
-    context_generator: ContextGenerator,
+    context_collector: ContextCollector,
     sp: spm.SentencePieceProcessor,
     batch: dict,
     word_table: Optional[k2.SymbolTable] = None,
@@ -546,7 +557,7 @@ def decode_one_batch(
         encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
 
     word_list, word_lengths, num_words_per_utt = \
-        context_generator.get_context_word_list(batch)
+        context_collector.get_context_word_list(batch)
     word_list = word_list.to(device)
     contexts, contexts_mask = model.context_encoder.embed_contexts(
         word_list,
@@ -704,7 +715,7 @@ def decode_dataset(
     dl: torch.utils.data.DataLoader,
     params: AttributeDict,
     model: nn.Module,
-    context_generator: ContextGenerator,
+    context_collector: ContextCollector,
     sp: spm.SentencePieceProcessor,
     word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
@@ -766,7 +777,7 @@ def decode_dataset(
         hyps_dict = decode_one_batch(
             params=params,
             model=model,
-            context_generator=context_generator,
+            context_collector=context_collector,
             sp=sp,
             decoding_graph=decoding_graph,
             word_table=word_table,
@@ -955,8 +966,37 @@ def main():
 
     logging.info(params)
 
+    logging.info("About to load context generator")
+    params.context_dir = Path(params.context_dir)
+    if params.is_pretrained_context_encoder:
+        # Use pretrained encoder, e.g., BERT
+        bert_encoder = BertEncoder(device=device)
+        context_collector = ContextCollector(
+            path_is21_deep_bias=params.context_dir,
+            sp=None,
+            bert_encoder=bert_encoder,
+            is_predefined=params.is_predefined,
+            n_distractors=params.n_distractors,
+            keep_ratio=params.keep_ratio,
+            is_full_context=params.is_full_context,
+        )
+        bert_encoder.free_up()
+    else:
+        context_collector = ContextCollector(
+            path_is21_deep_bias=params.context_dir,
+            sp=sp,
+            bert_encoder=None,
+            is_predefined=params.is_predefined,
+            n_distractors=params.n_distractors,
+            keep_ratio=params.keep_ratio,
+            is_full_context=params.is_full_context,
+        )
+
     logging.info("About to create model")
     model = get_transducer_model(params)
+
+    model.no_encoder_biasing = params.no_encoder_biasing
+    model.no_decoder_biasing = params.no_decoder_biasing
 
     if not params.use_averaged_model:
         if params.iter > 0:
@@ -1120,25 +1160,12 @@ def main():
     # test_sets = ["test-other"]
     # test_dl = [test_other_dl]
 
-    logging.info("About to load context generator")
-    params.context_dir = Path(params.context_dir)
-    context_generator = ContextGenerator(
-        path_is21_deep_bias=params.context_dir,
-        sp=sp,
-        is_predefined=params.is_predefined,
-        n_distractors=params.n_distractors,
-        keep_ratio=params.keep_ratio,
-        is_full_context=params.is_full_context,
-    )
-    model.no_encoder_biasing = params.no_encoder_biasing
-    model.no_decoder_biasing = params.no_decoder_biasing
-
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
             dl=test_dl,
             params=params,
             model=model,
-            context_generator=context_generator,
+            context_collector=context_collector,
             sp=sp,
             word_table=word_table,
             decoding_graph=decoding_graph,

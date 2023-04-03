@@ -86,7 +86,7 @@ ln -sf /export/fs04/a12/rhuang/deep_smoothing/data_librispeech/icefall-asr-libri
 python pruned_transducer_stateless7_context/train.py \
   --world-size $world_size \
   --num-epochs 30 \
-  --full-libri true \
+  --full-libri false \
   --use-fp16 true \
   --max-duration $max_duration \
   --exp-dir $exp_dir \

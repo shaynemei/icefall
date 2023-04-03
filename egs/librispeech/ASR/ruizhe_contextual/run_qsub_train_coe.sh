@@ -56,6 +56,8 @@ echo "hostname: `hostname`"
 
 n_distractors=100
 max_duration=700
+# n_distractors=-1
+# max_duration=700
 # n_distractors=500
 # max_duration=100
 
@@ -102,9 +104,7 @@ python pruned_transducer_stateless7_context/train.py \
   --num-epochs 30 \
   --n-distractors $n_distractors
 
-# --n-distractors 0 \
-# --is-full-context true
-
+# --n-distractors 0 --is-full-context true
 # --start-batch 
 
 # context size 100 (wrong due to lowercased biasing list):
@@ -138,3 +138,12 @@ python pruned_transducer_stateless7_context/train.py \
 # - Stage2:   --start-epoch 2 --num-epochs 30 --base-lr 0.1=>0.06 --n-distractors -1 (80,1000)
 #           /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10583446.out
 #           https://tensorboard.dev/experiment/zyVJCxbDQrm2kG9pwbqVWQ/
+
+# continue4: train stage2 directly from the pretrained ASR model, skipping stage1
+# - Stage2:   --start-epoch 2 --num-epochs 30 --base-lr 0.12 --n-distractors -1
+#             --base-lr 0.12: 
+#             /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10584053.out
+#             https://tensorboard.dev/experiment/h1aLWotQQymmRHjJ2s5t6Q/
+#             --base-lr 0.08: => actually, base-lr did not take effect...
+#             /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10584057.out
+#             https://tensorboard.dev/experiment/r5YGKIpZTwWEVwzHRg7rvQ/

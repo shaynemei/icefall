@@ -72,9 +72,12 @@ from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
 from zipformer import Zipformer
-from context_encoder import ContextEncoderLSTM
+from egs.librispeech.ASR.pruned_transducer_stateless7_context.context_encoder import ContextEncoder
+from egs.librispeech.ASR.pruned_transducer_stateless7_context.context_encoder_lstm import ContextEncoderLSTM
+from egs.librispeech.ASR.pruned_transducer_stateless7_context.context_encoder_pretrained import ContextEncoderPretrained
+from egs.librispeech.ASR.pruned_transducer_stateless7_context.bert_encoder import BertEncoder
 from biasing_module import BiasingModule
-from context_generator import ContextGenerator
+from egs.librispeech.ASR.pruned_transducer_stateless7_context.context_collector import ContextCollector
 
 from icefall import diagnostics
 from icefall.checkpoint import load_checkpoint, remove_checkpoints
@@ -406,6 +409,13 @@ def get_parser():
         help="",
     )
 
+    parser.add_argument(
+        "--is-pretrained-context-encoder",
+        type=str2bool,
+        default=False,
+        help="",
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -523,15 +533,27 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
 def get_contextual_model(params: AttributeDict) -> nn.Module:
     context_dim = 128
 
-    context_encoder = ContextEncoderLSTM(
-        vocab_size=params.vocab_size,
-        # encoder_dim=int(params.encoder_dims.split(",")[-1]),
-        # output_dim=params.joiner_dim,
-        encoder_dim=context_dim,
-        output_dim=context_dim,
-        num_layers=2,
-        num_directions=2,
-    )
+    if params.is_pretrained_context_encoder:
+        context_encoder = ContextEncoderPretrained(
+            vocab_size=params.vocab_size,
+            # encoder_dim=int(params.encoder_dims.split(",")[-1]),
+            # output_dim=params.joiner_dim,
+            encoder_dim=context_dim,
+            output_dim=context_dim,
+            num_layers=2,
+            num_directions=2,
+            drop_out=0.3,
+        )
+    else:
+        context_encoder = ContextEncoderLSTM(
+            vocab_size=params.vocab_size,
+            # encoder_dim=int(params.encoder_dims.split(",")[-1]),
+            # output_dim=params.joiner_dim,
+            encoder_dim=context_dim,
+            output_dim=context_dim,
+            num_layers=2,
+            num_directions=2,
+        )
 
     encoder_biasing_adapter = BiasingModule(
         query_dim=int(params.encoder_dims.split(",")[-1]),
@@ -710,7 +732,7 @@ def save_checkpoint(
 def compute_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
-    context_generator: ContextGenerator,
+    context_collector: ContextCollector,
     sp: spm.SentencePieceProcessor,
     batch: dict,
     is_training: bool,
@@ -761,7 +783,7 @@ def compute_loss(
     y = k2.RaggedTensor(y).to(device)
 
     word_list, word_lengths, num_words_per_utt = \
-        context_generator.get_context_word_list(batch)
+        context_collector.get_context_word_list(batch)
     word_list = word_list.to(device)
     # word_lengths = word_lengths.to(device)
     # num_words_per_utt = num_words_per_utt.to(device)
@@ -813,7 +835,7 @@ def compute_loss(
 def compute_validation_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
-    context_generator: ContextGenerator,
+    context_collector: ContextCollector,
     sp: spm.SentencePieceProcessor,
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
@@ -827,7 +849,7 @@ def compute_validation_loss(
         loss, loss_info = compute_loss(
             params=params,
             model=model,
-            context_generator=context_generator,
+            context_collector=context_collector,
             sp=sp,
             batch=batch,
             is_training=False,
@@ -849,7 +871,7 @@ def compute_validation_loss(
 def train_one_epoch(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
-    context_generator: ContextGenerator,
+    context_collector: ContextCollector,
     optimizer: torch.optim.Optimizer,
     scheduler: LRSchedulerType,
     sp: spm.SentencePieceProcessor,
@@ -911,7 +933,7 @@ def train_one_epoch(
                 loss, loss_info = compute_loss(
                     params=params,
                     model=model,
-                    context_generator=context_generator,
+                    context_collector=context_collector,
                     sp=sp,
                     batch=batch,
                     is_training=True,
@@ -1017,7 +1039,7 @@ def train_one_epoch(
             valid_info = compute_validation_loss(
                 params=params,
                 model=model,
-                context_generator=context_generator,
+                context_collector=context_collector,
                 sp=sp,
                 valid_dl=valid_dl,
                 world_size=world_size,
@@ -1081,6 +1103,31 @@ def run(rank, world_size, args):
     params.vocab_size = sp.get_piece_size()
 
     logging.info(params)
+
+    logging.info("About to load context generator")
+    params.context_dir = Path(params.context_dir)
+    if params.is_pretrained_context_encoder:
+        bert_encoder = BertEncoder(device=device)
+        context_collector = ContextCollector(
+            path_is21_deep_bias=params.context_dir,
+            sp=None,
+            bert_encoder=bert_encoder,
+            is_predefined=False,
+            n_distractors=params.n_distractors,
+            keep_ratio=params.keep_ratio,
+            is_full_context=params.is_full_context,
+        )
+        bert_encoder.free_up()
+    else:
+        context_collector = ContextCollector(
+            path_is21_deep_bias=params.context_dir,
+            sp=sp,
+            bert_encoder=None,
+            is_predefined=False,
+            n_distractors=params.n_distractors,
+            keep_ratio=params.keep_ratio,
+            is_full_context=params.is_full_context,
+        )
 
     logging.info("About to create model")
     model = get_transducer_model(params)
@@ -1235,21 +1282,10 @@ def run(rank, world_size, args):
     valid_cuts += librispeech.dev_other_cuts()
     valid_dl = librispeech.valid_dataloaders(valid_cuts)
 
-    logging.info("About to load context generator")
-    params.context_dir = Path(params.context_dir)
-    context_generator = ContextGenerator(
-        path_is21_deep_bias=params.context_dir,
-        sp=sp,
-        is_predefined=False,
-        n_distractors=params.n_distractors,
-        keep_ratio=params.keep_ratio,
-        is_full_context=params.is_full_context,
-    )
-
     if not params.print_diagnostics:
         scan_pessimistic_batches_for_oom(
             model=model,
-            context_generator=context_generator,
+            context_collector=context_collector,
             train_dl=train_dl,
             optimizer=optimizer,
             sp=sp,
@@ -1275,7 +1311,7 @@ def run(rank, world_size, args):
             params=params,
             model=model,
             model_avg=model_avg,
-            context_generator=context_generator,
+            context_collector=context_collector,
             optimizer=optimizer,
             scheduler=scheduler,
             sp=sp,
@@ -1343,7 +1379,7 @@ def display_and_save_batch(
 
 def scan_pessimistic_batches_for_oom(
     model: Union[nn.Module, DDP],
-    context_generator: ContextGenerator,
+    context_collector: ContextCollector,
     train_dl: torch.utils.data.DataLoader,
     optimizer: torch.optim.Optimizer,
     sp: spm.SentencePieceProcessor,
@@ -1362,7 +1398,7 @@ def scan_pessimistic_batches_for_oom(
                 loss, _ = compute_loss(
                     params=params,
                     model=model,
-                    context_generator=context_generator,
+                    context_collector=context_collector,
                     sp=sp,
                     batch=batch,
                     is_training=True,
