@@ -62,6 +62,7 @@ nvidia-smi
 #   --start-epoch 2
 
 n_distractors=100
+# n_distractors=-1
 max_duration=100
 # n_distractors=500
 # max_duration=100
@@ -74,7 +75,7 @@ max_duration=100
 # fi
 
 # continue training from the wrong model
-exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_continue3
+exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_100_c${n_distractors}_continue3
 mkdir -p $exp_dir
 # ln -sf /export/fs04/a12/rhuang/deep_smoothing/data_librispeech/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/exp/epoch-30.pt \
 #   $exp_dir/epoch-1.pt
@@ -97,4 +98,6 @@ python pruned_transducer_stateless7_context/train.py \
   --context-dir "data/fbai-speech/is21_deep_bias/" \
   --keep-ratio 1.0 \
   --start-epoch 2 \
-  --n-distractors $n_distractors
+  --n-distractors $n_distractors --is-pretrained-context-encoder true
+
+# --is-pretrained-context-encoder true

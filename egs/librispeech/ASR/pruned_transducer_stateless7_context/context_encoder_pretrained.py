@@ -16,7 +16,7 @@ class ContextEncoderPretrained(ContextEncoder):
 
         self.drop_out = torch.nn.Dropout(drop_out)
         self.linear = torch.nn.Linear(
-            self.bert_model.config.hidden_size,
+            encoder_dim,
             output_dim
         )
         self.relu = torch.nn.ReLU()

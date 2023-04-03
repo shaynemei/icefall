@@ -146,4 +146,4 @@ python pruned_transducer_stateless7_context/train.py \
 #             https://tensorboard.dev/experiment/h1aLWotQQymmRHjJ2s5t6Q/
 #             --base-lr 0.08: => actually, base-lr did not take effect...
 #             /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10584057.out
-#             https://tensorboard.dev/experiment/r5YGKIpZTwWEVwzHRg7rvQ/
+#             https://tensorboard.dev/experiment/HnzjFPJ6Qeq6V63XpvLKjw/

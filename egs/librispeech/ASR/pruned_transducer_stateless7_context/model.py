@@ -137,7 +137,7 @@ class Transducer(nn.Module):
         assert x.size(0) == x_lens.size(0) == y.dim0
 
         assert x.size(0) == len(num_words_per_utt)
-        assert word_list.size(0) == len(word_lengths)
+        assert word_lengths is None or word_list.size(0) == len(word_lengths)
 
         encoder_out, x_lens = self.encoder(x, x_lens)
         assert torch.all(x_lens > 0)

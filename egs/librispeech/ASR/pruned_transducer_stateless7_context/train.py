@@ -531,20 +531,20 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
     return joiner
 
 def get_contextual_model(params: AttributeDict) -> nn.Module:
-    context_dim = 128
+    context_dim = 128  # TODO: Hard-wired model size, which equals to the one in Amazon's paper
 
     if params.is_pretrained_context_encoder:
         context_encoder = ContextEncoderPretrained(
             vocab_size=params.vocab_size,
             # encoder_dim=int(params.encoder_dims.split(",")[-1]),
             # output_dim=params.joiner_dim,
-            encoder_dim=context_dim,
+            encoder_dim=768,  # TODO: Hard-wired for BERT-base now
             output_dim=context_dim,
             num_layers=2,
             num_directions=2,
             drop_out=0.3,
         )
-    else:
+    else:        
         context_encoder = ContextEncoderLSTM(
             vocab_size=params.vocab_size,
             # encoder_dim=int(params.encoder_dims.split(",")[-1]),
@@ -1117,8 +1117,8 @@ def run(rank, world_size, args):
             keep_ratio=params.keep_ratio,
             is_full_context=params.is_full_context,
         )
-        bert_encoder.free_up()
     else:
+        bert_encoder=None
         context_collector = ContextCollector(
             path_is21_deep_bias=params.context_dir,
             sp=sp,
@@ -1296,6 +1296,25 @@ def run(rank, world_size, args):
     if checkpoints and "grad_scaler" in checkpoints:
         logging.info("Loading grad scaler state dict")
         scaler.load_state_dict(checkpoints["grad_scaler"])
+
+    # Add new words to context_collector, and free up the BERT model from GPU
+    new_words = list()
+    logging.info("Looking for new words in train+dev cuts...")
+    total_cuts = 0
+    for cut_idx, cut in enumerate(itertools.chain(train_cuts, valid_cuts)):
+        total_cuts += 1
+        # if cut_idx % 10000 == 0:
+        #     logging.info(f"cut_idx: {cut_idx}")
+        text = cut.supervisions[0].text
+        for word in text.split():
+            if word not in context_collector.common_words or \
+                word not in context_collector.rare_words:
+                    new_words.append(word)
+    logging.info(f"{len(new_words)} new words detected.")
+    logging.info(f"Total cuts: {total_cuts}")
+    context_collector.add_new_words(new_words)
+    if bert_encoder is not None:
+        bert_encoder.free_up()
 
     for epoch in range(params.start_epoch, params.num_epochs + 1):
         scheduler.step_epoch(epoch - 1)
