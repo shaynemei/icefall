@@ -553,6 +553,7 @@ def get_contextual_model(params: AttributeDict) -> nn.Module:
             output_dim=context_dim,
             num_layers=2,
             num_directions=2,
+            drop_out=0.1,
         )
 
     encoder_biasing_adapter = BiasingModule(

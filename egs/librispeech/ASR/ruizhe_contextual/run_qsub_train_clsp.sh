@@ -81,6 +81,7 @@ full_libri_name=$([ "$full_libri" = true ] && echo "full" || echo "100")
 # continue training from the wrong model
 # exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_${full_libri_name}_c${n_distractors}_continue3
 exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_${full_libri_name}_c${n_distractors}_bert_stage1
+exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_${full_libri_name}_c${n_distractors}_stage1
 mkdir -p $exp_dir
 # ln -sf /export/fs04/a12/rhuang/deep_smoothing/data_librispeech/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/exp/epoch-30.pt \
 #   $exp_dir/epoch-1.pt
@@ -103,9 +104,9 @@ python pruned_transducer_stateless7_context/train.py \
   --context-dir "data/fbai-speech/is21_deep_bias/" \
   --keep-ratio 1.0 \
   --start-epoch 2 \
-  --n-distractors $n_distractors --is-pretrained-context-encoder true --n-distractors 0 --is-full-context true
+  --n-distractors $n_distractors --n-distractors 0 --is-full-context true
 
 # --is-pretrained-context-encoder true
-# --n-distractors 0 --is-full-context true
+# Stage1: --n-distractors 0 --is-full-context true
 
 

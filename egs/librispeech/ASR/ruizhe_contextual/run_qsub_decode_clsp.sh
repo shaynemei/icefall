@@ -51,7 +51,7 @@ exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c100_bert_stage1
 exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c-1_continue4
 
 epochs=17
-epochs=30
+epochs=39
 avgs=1
 use_averaged_model=$([ "$avgs" = 1 ] && echo "false" || echo "true")
 

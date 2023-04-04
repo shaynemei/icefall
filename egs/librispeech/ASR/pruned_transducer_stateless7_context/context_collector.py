@@ -174,7 +174,8 @@ class ContextCollector(torch.utils.data.Dataset):
             self.temp_dict = self.add_new_words(new_words, return_dict=True, silent=True)
 
         if self.n_distractors == -1:  # variable context list sizes
-            n_distractors_each = np.random.randint(low=10, high=1000, size=len(texts))
+            n_distractors_each = np.random.randint(low=10, high=500, size=len(texts))
+            # n_distractors_each = np.random.randint(low=80, high=300, size=len(texts))
         else:
             n_distractors_each = np.full(len(texts), self.n_distractors, int)
         distractors_cnt = n_distractors_each.sum()
@@ -253,16 +254,16 @@ class ContextCollector(torch.utils.data.Dataset):
                 num_words_per_utt.append(len(rare_words_pieces))
                 word_lengths.extend([len(pieces) for pieces in rare_words_pieces])
 
-                # TODO: this is a bug here: this will effectively modify the entries in 'self.all_words2embeddings'!!!
-                for pieces in rare_words_pieces:
-                    pieces += [pad_token] * (max_pieces_len - len(pieces))
-                word_list.extend(rare_words_pieces)
-
-                # # Correction:
-                # rare_words_pieces_padded = list()
+                # # TODO: this is a bug here: this will effectively modify the entries in 'self.all_words2embeddings'!!!
                 # for pieces in rare_words_pieces:
-                #     rare_words_pieces_padded.append(pieces + [pad_token] * (max_pieces_len - len(pieces)))
-                # word_list.extend(rare_words_pieces_padded)
+                #     pieces += [pad_token] * (max_pieces_len - len(pieces))
+                # word_list.extend(rare_words_pieces)
+
+                # Correction:
+                rare_words_pieces_padded = list()
+                for pieces in rare_words_pieces:
+                    rare_words_pieces_padded.append(pieces + [pad_token] * (max_pieces_len - len(pieces)))
+                word_list.extend(rare_words_pieces_padded)
 
             word_list = torch.tensor(word_list, dtype=torch.int32)
             # word_lengths = torch.tensor(word_lengths, dtype=torch.int32)

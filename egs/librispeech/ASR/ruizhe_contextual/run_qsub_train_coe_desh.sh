@@ -91,7 +91,8 @@ fi
 # ln -s /exp/rhuang/icefall_latest/egs/librispeech/ASR/pruned_transducer_stateless7_context/exp/exp_libri_full_lowerwrong/epoch-30.pt \
 #   $exp_dir/epoch-1.pt
 
-python pruned_transducer_stateless7_context/train.py \
+ray_icefall_base=/exp/rhuang/icefall_latest/egs/librispeech/ASR/
+python ${ray_icefall_base}/pruned_transducer_stateless7_context/train.py \
   --world-size 4 \
   --full-libri $full_libri \
   --use-fp16 true \
@@ -101,7 +102,7 @@ python pruned_transducer_stateless7_context/train.py \
   --master-port 12535 \
   --num-workers 10 \
   --base-lr 0.1 \
-  --context-dir "data/fbai-speech/is21_deep_bias/" \
+  --context-dir "${ray_icefall_base}/data/fbai-speech/is21_deep_bias/" \
   --keep-ratio 1.0 \
   --start-epoch 2 \
   --num-epochs 30 \

@@ -9,7 +9,7 @@ class ContextEncoderLSTM(ContextEncoder):
         output_dim: int = None,
         num_layers: int = None,
         num_directions: int = None,
-        drop_out: float = None,
+        drop_out: float = 0.1,
     ):
         super(ContextEncoderLSTM, self).__init__()
         self.num_layers = num_layers
@@ -32,6 +32,7 @@ class ContextEncoderLSTM(ContextEncoder):
             context_encoder_dim * self.num_directions, 
             output_dim
         )
+        self.drop_out = torch.nn.Dropout(drop_out)
 
         # TODO: Do we need some relu layer?
         # https://galhever.medium.com/sentiment-analysis-with-pytorch-part-4-lstm-bilstm-model-84447f6c4525
@@ -72,5 +73,6 @@ class ContextEncoderLSTM(ContextEncoder):
         h_1, h_2 = hn[-2, :, : ] , hn[-1, :, : ]
         final_h = torch.cat((h_1, h_2), dim=1)  # Concatenate both states
         final_h = self.linear(final_h)
+        # final_h = self.drop_out(final_h)
 
         return final_h
