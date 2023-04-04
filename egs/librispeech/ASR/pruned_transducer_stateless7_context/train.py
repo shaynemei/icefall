@@ -533,6 +533,9 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
 def get_contextual_model(params: AttributeDict) -> nn.Module:
     context_dim = 128  # TODO: Hard-wired model size, which equals to the one in Amazon's paper
 
+    # context_dim = 128  # 1.5%
+    # context_dim = 256  # 5.22% => seems better?
+
     if params.is_pretrained_context_encoder:
         context_encoder = ContextEncoderPretrained(
             # context_encoder_dim=int(params.encoder_dims.split(",")[-1]),

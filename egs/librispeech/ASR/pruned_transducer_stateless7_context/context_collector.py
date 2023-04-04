@@ -116,7 +116,10 @@ class ContextCollector(torch.utils.data.Dataset):
 
     def add_new_words(self, new_words_list, return_dict=False, silent=False):
         if len(new_words_list) == 0:
-            return
+            if return_dict is True:
+                return dict()
+            else:
+                return
         
         if self.all_words2pieces is not None:
             words_pieces_list = self.sp.encode(new_words_list, out_type=int)
@@ -224,7 +227,7 @@ class ContextCollector(torch.utils.data.Dataset):
             rare_words_pieces_list = []
             max_pieces_len = 0
             for rare_words in rare_words_list:
-                rare_words_pieces = [self.all_words2pieces.get(w, self.temp_dict[w] if self.temp_dict is not None else None) for w in rare_words]
+                rare_words_pieces = [self.all_words2pieces[w] if w in self.all_words2pieces else self.temp_dict[w] for w in rare_words]
                 if len(rare_words_pieces) > 0:
                     max_pieces_len = max(max_pieces_len, max(len(pieces) for pieces in rare_words_pieces))
                 rare_words_pieces_list.append(rare_words_pieces)

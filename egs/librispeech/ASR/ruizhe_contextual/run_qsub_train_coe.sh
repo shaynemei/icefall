@@ -130,10 +130,12 @@ python pruned_transducer_stateless7_context/train.py \
 # /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10581036.out  # continue3, trained from pretrained.pt
 # /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10581683.out
 
-# continue3:
+# continue3 (train from averaged pretrained model instead of epoch-30.pt):
 # - Stage1:   --start-epoch 2 --num-epochs 30 --n-distractors 0 --is-full-context true
 #             --base-lr 0.15 => 0.1 => 0.05
 #           https://tensorboard.dev/experiment/7PzL4cpxTgGup6Vp15FqMA/#scalars
+#           /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10581036.out
+#           
 # - Stage2:   --start-epoch 2 --num-epochs 30 --base-lr 0.1=>0.06 --n-distractors 100
 #           /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10583140.out
 #           https://tensorboard.dev/experiment/9lnyyTJDR9mlf0fwCLL12w/#scalars
