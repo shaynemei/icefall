@@ -154,6 +154,7 @@ from beam_search import (
     modified_beam_search_lm_shallow_fusion,
     modified_beam_search_LODR,
     modified_beam_search_ngram_rescoring,
+    modified_beam_search_LODR_biased,
 )
 from train import add_model_arguments, get_params, get_transducer_model
 from egs.librispeech.ASR.pruned_transducer_stateless7_context.context_collector import ContextCollector
@@ -474,6 +475,16 @@ def get_parser():
         help="",
     )
 
+    parser.add_argument(
+        "--biased-lm-scale",
+        type=float,
+        default=0.01,
+        help="""
+        Used only when --decoding_method is modified_beam_search_LODR_biased.
+        It specifies the scale for biased n-gram LM scores.
+        """,
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -565,11 +576,20 @@ def decode_one_batch(
         num_words_per_utt,
     )
 
+    model.scratch_space = dict()
+    model.scratch_space["contexts"] = contexts
+    model.scratch_space["contexts_mask"] = contexts_mask
+    model.scratch_space["sp"] = sp
+
+    if "biased" in params.decoding_method:
+        fsa_list, fsa_sizes, num_words_per_utt2 = \
+            context_collector.get_context_word_wfst(batch)
+        model.scratch_space["biased_fsa_list"] = fsa_list
+        model.scratch_space["biased_fsa_scale"] = context_collector.wfst_scale
+
     encoder_biasing_out, attn = model.encoder_biasing_adapter.forward(encoder_out, contexts, contexts_mask)
     if not model.no_encoder_biasing:
         encoder_out = encoder_out + encoder_biasing_out
-
-    model.scratch_space = (contexts, contexts_mask, sp)
 
     hyps = []
 
@@ -658,6 +678,19 @@ def decode_one_batch(
             hyps.append(hyp.split())
     elif params.decoding_method == "modified_beam_search_LODR":
         hyp_tokens = modified_beam_search_LODR(
+            model=model,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            beam=params.beam_size,
+            sp=sp,
+            LODR_lm=ngram_lm,
+            LODR_lm_scale=ngram_lm_scale,
+            LM=LM,
+        )
+        for hyp in sp.decode(hyp_tokens):
+            hyps.append(hyp.split())
+    elif params.decoding_method == "modified_beam_search_LODR_biased":
+        hyp_tokens = modified_beam_search_LODR_biased(
             model=model,
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
@@ -899,6 +932,7 @@ def main():
         "modified_beam_search",
         "modified_beam_search_lm_shallow_fusion",
         "modified_beam_search_LODR",
+        "modified_beam_search_LODR_biased",
     )
     params.res_dir = params.exp_dir / params.decoding_method
 
@@ -938,6 +972,8 @@ def main():
             params.suffix += (
                 f"-LODR-{params.tokens_ngram}gram-scale-{params.ngram_lm_scale}"
             )
+        if "biased" in params.decoding_method:
+            params.suffix += f"-biased-scale-{params.biased_lm_scale}"
 
     if params.use_averaged_model:
         params.suffix += "-use-averaged-model"
@@ -966,7 +1002,7 @@ def main():
 
     logging.info(params)
 
-    logging.info("About to load context generator")
+    logging.info("About to load context collector")
     params.context_dir = Path(params.context_dir)
     if params.is_pretrained_context_encoder:
         # Use pretrained encoder, e.g., BERT
@@ -979,8 +1015,9 @@ def main():
             n_distractors=params.n_distractors,
             keep_ratio=params.keep_ratio,
             is_full_context=params.is_full_context,
+            wfst_scale=params.biased_lm_scale,
         )
-        bert_encoder.free_up()
+        # bert_encoder.free_up()
     else:
         context_collector = ContextCollector(
             path_is21_deep_bias=params.context_dir,
@@ -990,6 +1027,7 @@ def main():
             n_distractors=params.n_distractors,
             keep_ratio=params.keep_ratio,
             is_full_context=params.is_full_context,
+            wfst_scale=params.biased_lm_scale
         )
 
     logging.info("About to create model")

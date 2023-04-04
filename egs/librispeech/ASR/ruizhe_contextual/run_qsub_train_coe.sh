@@ -85,6 +85,11 @@ if [ ! -f $exp_dir/epoch-1.pt ]; then
   ln -s $path_to_pretrained_asr_model/exp/pretrained.pt $exp_dir/epoch-1.pt
 fi
 
+# Epoch 10 from stage 1:
+# if [ ! -f $exp_dir/epoch-1.pt ]; then
+#   ln -s /exp/rhuang/icefall_latest/egs/librispeech/ASR/pruned_transducer_stateless7_context/exp/exp_libri_full_c-1_stage1/epoch-10.pt $exp_dir/epoch-1.pt
+# fi
+
 # Continue training from the wrong model
 # exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_continue3
 # mkdir -p $exp_dir
@@ -191,4 +196,8 @@ python pruned_transducer_stateless7_context/train.py \
 # COE: /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10585355.out
 #      /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10585355.out => increased learning rate
 # CLSP (context_dim=256, drop_out=0.1): /export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/ruizhe_contextual/log/train-3614171.out
+#
+# Stage2:
+# COE: /exp/draj/mini_scale_2022/icefall/egs/librispeech/ASR/train_ruizhe.sh
+#      /exp/draj/mini_scale_2022/icefall/egs/librispeech/ASR/pruned_transducer_stateless7_context/exp/log/log-train-10585484.out => stage2 from epoch-10.pt of stage1
 

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-#$ -wd /exp/rhuang/icefall_latest/egs/librispeech/ASR
+#$ -wd /exp/draj/mini_scale_2022/icefall/egs/librispeech/ASR
 #$ -V
 #$ -N train
-#$ -j y -o ruizhe_contextual/log/log-$JOB_NAME-$JOB_ID.out
-#$ -M ruizhe@jhu.edu
+#$ -j y -o pruned_transducer_stateless7_context/exp/log/log-$JOB_NAME-$JOB_ID.out
+#$ -M draj2@jhu.edu
 #$ -m e
 #$ -l mem_free=20G,h_rt=600:00:00,gpu=4
-#$ -q gpu.q@@v100
+#$ -q gpu.q@@rtx
 
 # #$ -q gpu.q@@v100
 # #$ -q gpu.q@@rtx
@@ -84,6 +84,11 @@ mkdir -p $exp_dir
 if [ ! -f $exp_dir/epoch-1.pt ]; then
   ln -s $path_to_pretrained_asr_model/exp/pretrained.pt $exp_dir/epoch-1.pt
 fi
+
+# Epoch 10 from stage 1:
+# if [ ! -f $exp_dir/epoch-1.pt ]; then
+#   ln -s /exp/rhuang/icefall_latest/egs/librispeech/ASR/pruned_transducer_stateless7_context/exp/exp_libri_full_c-1_stage1/epoch-10.pt $exp_dir/epoch-1.pt
+# fi
 
 # Continue training from the wrong model
 # exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_continue3
@@ -192,4 +197,7 @@ python ${ray_icefall_base}/pruned_transducer_stateless7_context/train.py \
 # COE: /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10585355.out
 #      /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10585355.out => increased learning rate
 # CLSP (context_dim=256, drop_out=0.1): /export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/ruizhe_contextual/log/train-3614171.out
-
+#
+# Stage2:
+# COE: /exp/draj/mini_scale_2022/icefall/egs/librispeech/ASR/train_ruizhe.sh
+#      /exp/draj/mini_scale_2022/icefall/egs/librispeech/ASR/pruned_transducer_stateless7_context/exp/log/log-train-10585484.out

@@ -8,6 +8,7 @@ import ast
 import numpy as np
 from itertools import chain
 from bert_encoder import BertEncoder
+from context_wfst import generate_context_graph_nfa
 
 class ContextCollector(torch.utils.data.Dataset):
     def __init__(
@@ -16,25 +17,33 @@ class ContextCollector(torch.utils.data.Dataset):
         sp: spm.SentencePieceProcessor,
         bert_encoder: BertEncoder = None,
         n_distractors: int = 100,
+        ratio_distractors: int = None,
         is_predefined: bool = False,
         keep_ratio: float = 1.0,
         is_full_context: bool = False,
+        backoff_id: int = None,
+        wfst_scale: float = 0.1,
     ):
         self.sp = sp
         self.bert_encoder = bert_encoder
         self.path_is21_deep_bias = path_is21_deep_bias
         self.n_distractors = n_distractors
+        self.ratio_distractors = ratio_distractors
         self.is_predefined = is_predefined
         self.keep_ratio = keep_ratio
         self.is_full_context = is_full_context   # use all words (rare or common) in the context
         # self.embedding_dim = self.bert_encoder.bert_model.config.hidden_size
+        self.backoff_id = backoff_id
+        self.wfst_scale = wfst_scale
 
         logging.info(f"""
             n_distractors={n_distractors},
+            ratio_distractors={ratio_distractors},
             is_predefined={is_predefined},
             keep_ratio={keep_ratio},
             is_full_context={is_full_context},
             bert_encoder={bert_encoder.name if bert_encoder is not None else None},
+            wfst_scale={wfst_scale},
         """)
 
         self.common_words = None
@@ -69,7 +78,7 @@ class ContextCollector(torch.utils.data.Dataset):
                         line = line.split("\t")
                         uid, ref_text, ref_rare_words, context_rare_words = line
                         context_rare_words = ast.literal_eval(context_rare_words)
-                        biasing_list[uid] = [w for w in context_rare_words]
+                        biasing_list[uid] = context_rare_words
 
                         ref_rare_words = ast.literal_eval(ref_rare_words)
                         ref_text = ref_text.split()
@@ -111,7 +120,11 @@ class ContextCollector(torch.utils.data.Dataset):
             #     self.all_words2embeddings[word] = self.bert_encoder.encode_strings([word])[0]
             if len(new_words) > 0:
                 self.add_new_words(new_words, silent=True)
-        
+
+        if is_predefined:
+            assert self.ratio_distractors is None
+            assert self.n_distractors in [100, 500, 1000, 2000]
+
         self.temp_dict = None
 
     def add_new_words(self, new_words_list, return_dict=False, silent=False):
@@ -173,17 +186,27 @@ class ContextCollector(torch.utils.data.Dataset):
         if len(new_words) > 0:
             self.temp_dict = self.add_new_words(new_words, return_dict=True, silent=True)
 
-        if self.n_distractors == -1:  # variable context list sizes
-            n_distractors_each = np.random.randint(low=10, high=500, size=len(texts))
-            # n_distractors_each = np.random.randint(low=80, high=300, size=len(texts))
+        if self.ratio_distractors is not None:
+            n_distractors_each = []
+            for rare_words in rare_words_list:
+                n_distractors_each.append(len(rare_words) * self.ratio_distractors)
+            n_distractors_each = np.asarray(n_distractors_each, dtype=int)
         else:
-            n_distractors_each = np.full(len(texts), self.n_distractors, int)
+            if self.n_distractors == -1:  # variable context list sizes
+                n_distractors_each = np.random.randint(low=10, high=500, size=len(texts))
+                # n_distractors_each = np.random.randint(low=80, high=300, size=len(texts))
+            else:
+                n_distractors_each = np.full(len(texts), self.n_distractors, int)
         distractors_cnt = n_distractors_each.sum()
 
-        distractors = random.sample(
+        distractors = random.sample(  # without replacement
             self.rare_words, 
             distractors_cnt
         )  # TODO: actually the context should contain both rare and common words
+        # distractors = random.choices(  # random choices with replacement
+        #     self.rare_words, 
+        #     distractors_cnt,
+        # )
         distractors_pos = 0
         for i, rare_words in enumerate(rare_words_list):
             rare_words.extend(distractors[distractors_pos: distractors_pos + n_distractors_each[i]])
@@ -215,7 +238,7 @@ class ContextCollector(torch.utils.data.Dataset):
         batch: dict,
     ):
         """
-        Generate context biasing list as a list of words for each utterance
+        Generate/Get the context biasing list as a list of words for each utterance
         Use keep_ratio to simulate the "imperfect" context which may not have 100% coverage of the ground truth words.
         """
         if self.is_predefined:
@@ -279,3 +302,36 @@ class ContextCollector(torch.utils.data.Dataset):
             word_list = torch.stack(word_list)
 
         return word_list, word_lengths, num_words_per_utt
+
+    def get_context_word_wfst(
+        self,
+        batch: dict,
+    ):
+        """
+        Get the WFST representation of the context biasing list as a list of words for each utterance
+        """
+        if self.is_predefined:
+            rare_words_list = self._get_predefined_word_lists(batch)
+        else:
+            rare_words_list = self._get_random_word_lists(batch)
+        
+        # TODO:
+        # We can associate weighted or dynamic weights for each rare word or token
+
+        nbest_size = 1  # TODO: The maximum number of different tokenization for each lexicon entry.
+
+        # Use SentencePiece to encode the words
+        rare_words_pieces_list = []
+        num_words_per_utt = []
+        for rare_words in rare_words_list:
+            rare_words_pieces = [self.all_words2pieces[w] if w in self.all_words2pieces else self.temp_dict[w] for w in rare_words]
+            rare_words_pieces_list.append(rare_words_pieces)
+            num_words_per_utt.append(len(rare_words))
+
+        fsa_list, fsa_sizes = generate_context_graph_nfa(
+            words_pieces_list = rare_words_pieces_list, 
+            backoff_id = self.backoff_id, 
+            sp = self.sp,
+        )
+
+        return fsa_list, fsa_sizes, num_words_per_utt
