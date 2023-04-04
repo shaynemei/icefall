@@ -57,14 +57,13 @@ echo "hostname: `hostname`"
 n_distractors=100
 n_distractors=0
 max_duration=700
-# n_distractors=-1
+n_distractors=-1
 # max_duration=700
 # n_distractors=500
 # max_duration=100
 
-# _continue: continue with full context from epoch-30.pt
-# _continue2: continue with random context from _continue
-# _continue3: continue with full context from pretrained.pt
+full_libri=true
+full_libri_name=$([ "$full_libri" = true ] && echo "full" || echo "100")
 
 
 # Continue training from epoch-30.pt -- this is not optimal!
@@ -78,7 +77,8 @@ max_duration=700
 # Continue training from pretrained.pt
 path_to_pretrained_asr_model=/exp/rhuang/librispeech/pretrained2/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/
 # exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_continue3
-exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_bert_stage1
+# exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_bert_stage1
+exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_continue4
 mkdir -p $exp_dir
 if [ ! -f $exp_dir/epoch-1.pt ]; then
   ln -s $path_to_pretrained_asr_model/exp/pretrained.pt $exp_dir/epoch-1.pt
@@ -92,7 +92,7 @@ fi
 
 python pruned_transducer_stateless7_context/train.py \
   --world-size 4 \
-  --full-libri true \
+  --full-libri $full_libri \
   --use-fp16 true \
   --max-duration $max_duration \
   --exp-dir $exp_dir \
@@ -104,11 +104,17 @@ python pruned_transducer_stateless7_context/train.py \
   --keep-ratio 1.0 \
   --start-epoch 2 \
   --num-epochs 30 \
-  --n-distractors $n_distractors --n-distractors 0 --is-full-context true --is-pretrained-context-encoder true
+  --n-distractors $n_distractors
 
 # --n-distractors 0 --is-full-context true
 # --start-batch 
 # --is-pretrained-context-encoder true
+
+
+
+# _continue: continue with full context from epoch-30.pt
+# _continue2: continue with random context from _continue
+# _continue3: continue with full context from pretrained.pt
 
 # context size 100 (wrong due to lowercased biasing list):
 # /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10576003.out
@@ -153,6 +159,8 @@ python pruned_transducer_stateless7_context/train.py \
 #             /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10584057.out
 #             https://tensorboard.dev/experiment/HnzjFPJ6Qeq6V63XpvLKjw/
 #             https://tensorboard.dev/experiment/MNMWFd0aQsKxuDBpPktqkw/
+#             continue beyond 30 epochs:
+#             /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10585306.out
 
 # BERT: with dropout=0.3 and relu layer, no full context
 # max_duration=120, world_size=8
