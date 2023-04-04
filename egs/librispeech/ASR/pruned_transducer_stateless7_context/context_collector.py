@@ -27,7 +27,7 @@ class ContextCollector(torch.utils.data.Dataset):
         self.is_predefined = is_predefined
         self.keep_ratio = keep_ratio
         self.is_full_context = is_full_context   # use all words (rare or common) in the context
-        self.embedding_dim = self.bert_encoder.bert_model.config.hidden_size
+        # self.embedding_dim = self.bert_encoder.bert_model.config.hidden_size
 
         logging.info(f"""
             n_distractors={n_distractors},
@@ -76,7 +76,7 @@ class ContextCollector(torch.utils.data.Dataset):
                         all_cnt += len(ref_text)
                         rare_cnt += len(ref_rare_words)
                 return biasing_list, rare_cnt / all_cnt
-                    
+
             self.test_clean_biasing_list, ratio_clean = \
                 read_ref_biasing_list(self.path_is21_deep_bias / f"ref/test-clean.biasing_{n_distractors}.tsv")
             self.test_other_biasing_list, ratio_other = \
@@ -100,23 +100,39 @@ class ContextCollector(torch.utils.data.Dataset):
             logging.info(f"len(self.all_words2embeddings)={len(self.all_words2embeddings)}")
         
         if is_predefined:
+            new_words = list()
             for uid, wlist in chain(self.test_clean_biasing_list.items(), self.test_other_biasing_list.items()):
                 for word in wlist:
-                    if self.all_words2pieces is not None and word not in self.all_words2pieces:
-                        self.all_words2pieces[word] = self.sp.encode(word, out_type=int)
-                    if self.all_words2embeddings is not None and word not in self.all_words2embeddings:
-                        self.all_words2embeddings[word] = self.bert_encoder.encode_strings([word])[0]
+                    if word not in self.common_words or word not in self.rare_words:
+                        new_words.append(word)
+            # if self.all_words2pieces is not None and word not in self.all_words2pieces:
+            #     self.all_words2pieces[word] = self.sp.encode(word, out_type=int)
+            # if self.all_words2embeddings is not None and word not in self.all_words2embeddings:
+            #     self.all_words2embeddings[word] = self.bert_encoder.encode_strings([word])[0]
+            if len(new_words) > 0:
+                self.add_new_words(new_words, silent=True)
+        
+        self.temp_dict = None
 
-    def add_new_words(self, new_words_list):
+    def add_new_words(self, new_words_list, return_dict=False, silent=False):
+        if len(new_words_list) == 0:
+            return
+        
         if self.all_words2pieces is not None:
             words_pieces_list = self.sp.encode(new_words_list, out_type=int)
-            for w, pieces in zip(new_words_list, words_pieces_list):
-                self.all_words2pieces[w] = pieces
+            new_words2pieces = {w: pieces for w, pieces in zip(new_words_list, words_pieces_list)}
+            if return_dict:
+                return new_words2pieces
+            else:
+                self.all_words2pieces.update(new_words2pieces)
         
         if self.all_words2embeddings is not None:
-            embeddings_list = self.bert_encoder.encode_strings(new_words_list)
-            for w, ebd in zip(new_words_list, embeddings_list):
-                self.all_words2embeddings[w] = ebd
+            embeddings_list = self.bert_encoder.encode_strings(new_words_list, silent=silent)
+            new_words2embeddings = {w: ebd for w, ebd in zip(new_words_list, embeddings_list)}
+            if return_dict:
+                return new_words2embeddings
+            else:
+                self.all_words2embeddings.update(new_words2embeddings)
         
         self.all_words.extend(new_words_list)
         self.rare_words.update(new_words_list)
@@ -127,6 +143,7 @@ class ContextCollector(torch.utils.data.Dataset):
     def _get_random_word_lists(self, batch):
         texts = batch["supervisions"]["text"]
 
+        new_words = []
         rare_words_list = []
         for text in texts:
             rare_words = []
@@ -135,10 +152,12 @@ class ContextCollector(torch.utils.data.Dataset):
                     rare_words.append(word)
 
                 if self.all_words2pieces is not None and word not in self.all_words2pieces:
-                    self.all_words2pieces[word] = self.sp.encode(word, out_type=int)
+                    new_words.append(word)
+                    # self.all_words2pieces[word] = self.sp.encode(word, out_type=int)
                 if self.all_words2embeddings is not None and word not in self.all_words2embeddings:
-                    logging.info(f"New word detected: {word}")
-                    self.all_words2embeddings[word] = self.bert_encoder.encode_strings([word])[0]
+                    new_words.append(word)
+                    # logging.info(f"New word detected: {word}")
+                    # self.all_words2embeddings[word] = self.bert_encoder.encode_strings([word])[0]
             
             rare_words = list(set(rare_words))  # deduplication
 
@@ -147,6 +166,10 @@ class ContextCollector(torch.utils.data.Dataset):
 
             rare_words_list.append(rare_words)
         
+        self.temp_dict = None
+        if len(new_words) > 0:
+            self.temp_dict = self.add_new_words(new_words, return_dict=True, silent=True)
+
         if self.n_distractors == -1:  # variable context list sizes
             n_distractors_each = np.random.randint(low=10, high=1000, size=len(texts))
         else:
@@ -201,7 +224,7 @@ class ContextCollector(torch.utils.data.Dataset):
             rare_words_pieces_list = []
             max_pieces_len = 0
             for rare_words in rare_words_list:
-                rare_words_pieces = [self.all_words2pieces[w] for w in rare_words]
+                rare_words_pieces = [self.all_words2pieces.get(w, self.temp_dict[w] if self.temp_dict is not None else None) for w in rare_words]
                 if len(rare_words_pieces) > 0:
                     max_pieces_len = max(max_pieces_len, max(len(pieces) for pieces in rare_words_pieces))
                 rare_words_pieces_list.append(rare_words_pieces)
@@ -209,7 +232,12 @@ class ContextCollector(torch.utils.data.Dataset):
             # Use BERT embeddings here
             rare_words_embeddings_list = []
             for rare_words in rare_words_list:
-                rare_words_embeddings = [self.all_words2embeddings[w] for w in rare_words]
+                # for w in rare_words:
+                #     if w not in self.all_words2embeddings and (self.temp_dict is not None and w not in self.temp_dict):
+                #         import pdb; pdb.set_trace()
+                #     if w == "STUBE":
+                #         import pdb; pdb.set_trace()
+                rare_words_embeddings = [self.all_words2embeddings[w] if w in self.all_words2embeddings else self.temp_dict[w] for w in rare_words]
                 rare_words_embeddings_list.append(rare_words_embeddings)
 
         if self.all_words2embeddings is None:

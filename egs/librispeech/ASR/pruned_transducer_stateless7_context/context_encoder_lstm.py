@@ -5,7 +5,7 @@ class ContextEncoderLSTM(ContextEncoder):
     def __init__(
         self,
         vocab_size: int = None,
-        encoder_dim: int = None,
+        context_encoder_dim: int = None,
         output_dim: int = None,
         num_layers: int = None,
         num_directions: int = None,
@@ -14,22 +14,22 @@ class ContextEncoderLSTM(ContextEncoder):
         super(ContextEncoderLSTM, self).__init__()
         self.num_layers = num_layers
         self.num_directions = num_directions
-        self.encoder_dim = encoder_dim
+        self.context_encoder_dim = context_encoder_dim
 
         self.embed = torch.nn.Embedding(
             vocab_size, 
-            encoder_dim
+            context_encoder_dim
         )
         self.rnn = torch.nn.LSTM(
-            input_size=encoder_dim, 
-            hidden_size=encoder_dim, 
+            input_size=context_encoder_dim, 
+            hidden_size=context_encoder_dim, 
             num_layers=self.num_layers,
             batch_first=True, 
             bidirectional=(self.num_directions == 2), 
             dropout=0.1 if self.num_layers > 1 else 0
         )
         self.linear = torch.nn.Linear(
-            encoder_dim * self.num_directions, 
+            context_encoder_dim * self.num_directions, 
             output_dim
         )
 

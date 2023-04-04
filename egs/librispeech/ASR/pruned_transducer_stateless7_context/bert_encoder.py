@@ -41,6 +41,7 @@ class BertEncoder:
         self,
         word_list,
         batch_size = 6000,
+        silent = False,
     ):
         """
         Encode a list of uncased strings into a list of embeddings
@@ -54,7 +55,7 @@ class BertEncoder:
         i = 0
         embeddings_list = list()
         while i < len(word_list):
-            if int(i / 10000) % 5 == 0:
+            if not silent and int(i / 10000) % 5 == 0:
                 logging.info(f"Using '{self.name}' to encode the wordlist: {i}/{len(word_list)}")
             wlist = word_list[i: i + batch_size]
             embeddings = self._encode_strings(wlist)
@@ -62,7 +63,8 @@ class BertEncoder:
             embeddings = list(embeddings)
             embeddings_list.extend(embeddings)
             i += batch_size
-        logging.info(f"Done, len(embeddings_list)={len(embeddings_list)}")
+        if not silent:
+            logging.info(f"Done, len(embeddings_list)={len(embeddings_list)}")
         return embeddings_list
     
     def free_up(self):

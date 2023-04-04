@@ -6,7 +6,7 @@
 #$ -M ruizhe@jhu.edu
 #$ -m e
 #$ -l mem_free=20G,h_rt=600:00:00,gpu=4
-#$ -q gpu.q@@rtx
+#$ -q gpu.q@@v100
 
 # #$ -q gpu.q@@v100
 # #$ -q gpu.q@@rtx
@@ -55,6 +55,7 @@ echo "hostname: `hostname`"
 #   --master-port 12535
 
 n_distractors=100
+n_distractors=0
 max_duration=700
 # n_distractors=-1
 # max_duration=700
@@ -76,7 +77,8 @@ max_duration=700
 
 # Continue training from pretrained.pt
 path_to_pretrained_asr_model=/exp/rhuang/librispeech/pretrained2/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/
-exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_continue3
+# exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_continue3
+exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_bert_stage1
 mkdir -p $exp_dir
 if [ ! -f $exp_dir/epoch-1.pt ]; then
   ln -s $path_to_pretrained_asr_model/exp/pretrained.pt $exp_dir/epoch-1.pt
@@ -102,10 +104,11 @@ python pruned_transducer_stateless7_context/train.py \
   --keep-ratio 1.0 \
   --start-epoch 2 \
   --num-epochs 30 \
-  --n-distractors $n_distractors
+  --n-distractors $n_distractors --n-distractors 0 --is-full-context true --is-pretrained-context-encoder true
 
 # --n-distractors 0 --is-full-context true
 # --start-batch 
+# --is-pretrained-context-encoder true
 
 # context size 100 (wrong due to lowercased biasing list):
 # /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10576003.out
@@ -147,3 +150,24 @@ python pruned_transducer_stateless7_context/train.py \
 #             --base-lr 0.08: => actually, base-lr did not take effect...
 #             /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10584057.out
 #             https://tensorboard.dev/experiment/HnzjFPJ6Qeq6V63XpvLKjw/
+#             https://tensorboard.dev/experiment/MNMWFd0aQsKxuDBpPktqkw/
+
+# BERT: with dropout=0.3 and relu layer, no full context
+# max_duration=120, world_size=8
+# /export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/ruizhe_contextual/log/train-3613914.out
+# https://tensorboard.dev/experiment/fp13QHZaRZqPZxv38u2ZOg/
+# resume from epoch 3 if you want to run it again
+
+# BERT: stage1
+# /export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/ruizhe_contextual/log/train-3613915.out
+# https://tensorboard.dev/experiment/NGRw0MYMS5WU5NPMyBYUEA/
+# https://tensorboard.dev/experiment/0Gl8ijfDS9eAECYqLxmP2w/ => clsp grid 8 GPUs
+#
+# /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10584971.out
+# https://tensorboard.dev/experiment/PAXLxp3nS5mJWQdE2sMGaA/ => COE grid, [with non-linear activation and dropout]=>was commented out
+#
+# The model did not learn anything.
+# WER with full context and no distractors (epoch 16 on clsp grid): test-clean 2.24(1.36/9.39); test-other 5.22(3.41/21.16)
+# with 100 distractors: 2.59(1.68/10.00); 5.93(4.08/22.15)
+
+

@@ -5,12 +5,13 @@
 #$ -j y -o ruizhe_contextual/log/$JOB_NAME-$JOB_ID.out
 #$ -M ruizhe@jhu.edu
 #$ -m e
-#$ -l ram_free=16G,mem_free=16G,gpu=3,hostname=!b*
-#$ -q 4gpu.q
+#$ -l ram_free=32G,mem_free=32G,gpu=8,hostname=!b*
+#$ -q g.q
 
+# -q 4gpu.q
 # &!octopod*
 
-world_size=3
+world_size=8
 
 #### Activate dev environments and call programs
 # mamba activate /home/rhuang/mambaforge/envs/efrat
@@ -63,9 +64,12 @@ nvidia-smi
 
 n_distractors=100
 # n_distractors=-1
-max_duration=100
+max_duration=120
 # n_distractors=500
 # max_duration=100
+
+full_libri=true
+full_libri_name=$([ "$full_libri" = true ] && echo "full" || echo "100")
 
 # path_to_pretrained_asr_model=/exp/rhuang/librispeech/pretrained2/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/
 # exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}
@@ -75,7 +79,8 @@ max_duration=100
 # fi
 
 # continue training from the wrong model
-exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_100_c${n_distractors}_continue3
+# exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_${full_libri_name}_c${n_distractors}_continue3
+exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_${full_libri_name}_c${n_distractors}_bert_stage1
 mkdir -p $exp_dir
 # ln -sf /export/fs04/a12/rhuang/deep_smoothing/data_librispeech/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/exp/epoch-30.pt \
 #   $exp_dir/epoch-1.pt
@@ -87,7 +92,7 @@ ln -sf /export/fs04/a12/rhuang/deep_smoothing/data_librispeech/icefall-asr-libri
 python pruned_transducer_stateless7_context/train.py \
   --world-size $world_size \
   --num-epochs 30 \
-  --full-libri false \
+  --full-libri $full_libri \
   --use-fp16 true \
   --max-duration $max_duration \
   --exp-dir $exp_dir \
@@ -98,6 +103,9 @@ python pruned_transducer_stateless7_context/train.py \
   --context-dir "data/fbai-speech/is21_deep_bias/" \
   --keep-ratio 1.0 \
   --start-epoch 2 \
-  --n-distractors $n_distractors --is-pretrained-context-encoder true
+  --n-distractors $n_distractors --is-pretrained-context-encoder true --n-distractors 0 --is-full-context true
 
 # --is-pretrained-context-encoder true
+# --n-distractors 0 --is-full-context true
+
+

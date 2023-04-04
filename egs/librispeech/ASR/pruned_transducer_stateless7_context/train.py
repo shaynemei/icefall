@@ -535,21 +535,18 @@ def get_contextual_model(params: AttributeDict) -> nn.Module:
 
     if params.is_pretrained_context_encoder:
         context_encoder = ContextEncoderPretrained(
-            vocab_size=params.vocab_size,
-            # encoder_dim=int(params.encoder_dims.split(",")[-1]),
+            # context_encoder_dim=int(params.encoder_dims.split(",")[-1]),
             # output_dim=params.joiner_dim,
-            encoder_dim=768,  # TODO: Hard-wired for BERT-base now
+            context_encoder_dim=768,  # TODO: Hard-wired for BERT-base now
             output_dim=context_dim,
-            num_layers=2,
-            num_directions=2,
-            drop_out=0.3,
+            drop_out=0.1,
         )
     else:        
         context_encoder = ContextEncoderLSTM(
             vocab_size=params.vocab_size,
-            # encoder_dim=int(params.encoder_dims.split(",")[-1]),
+            # context_encoder_dim=int(params.encoder_dims.split(",")[-1]),
             # output_dim=params.joiner_dim,
-            encoder_dim=context_dim,
+            context_encoder_dim=context_dim,
             output_dim=context_dim,
             num_layers=2,
             num_directions=2,
@@ -646,21 +643,22 @@ def load_checkpoint_if_available(
         "best_train_loss",
         "best_valid_loss",
     ]
-    # saved_params_hard_wired = {
-    #     "best_train_epoch": 28,
-    #     "best_valid_epoch": 30,
-    #     "batch_idx_train": 105240,
-    #     "best_train_loss": 0.15620702543731815,
-    #     "best_valid_loss": 0.1486564241859933,
-    # }
 
     saved_params_hard_wired = {
-        "best_train_epoch": 10,
-        "best_valid_epoch": 10,
-        "batch_idx_train": 140313,
-        "best_train_loss": 0.0841903351392453,
-        "best_valid_loss": 0.07505495531675765,
+        "best_train_epoch": 28,
+        "best_valid_epoch": 30,
+        "batch_idx_train": 105240,
+        "best_train_loss": 0.15620702543731815,
+        "best_valid_loss": 0.1486564241859933,
     }
+
+    # saved_params_hard_wired = {
+    #     "best_train_epoch": 10,
+    #     "best_valid_epoch": 10,
+    #     "batch_idx_train": 140313,
+    #     "best_train_loss": 0.0841903351392453,
+    #     "best_valid_loss": 0.07505495531675765,
+    # }
 
     for k in keys:
         if k in saved_params:
@@ -1298,23 +1296,24 @@ def run(rank, world_size, args):
         scaler.load_state_dict(checkpoints["grad_scaler"])
 
     # Add new words to context_collector, and free up the BERT model from GPU
-    new_words = list()
-    logging.info("Looking for new words in train+dev cuts...")
-    total_cuts = 0
-    for cut_idx, cut in enumerate(itertools.chain(train_cuts, valid_cuts)):
-        total_cuts += 1
-        # if cut_idx % 10000 == 0:
-        #     logging.info(f"cut_idx: {cut_idx}")
-        text = cut.supervisions[0].text
-        for word in text.split():
-            if word not in context_collector.common_words or \
-                word not in context_collector.rare_words:
-                    new_words.append(word)
-    logging.info(f"{len(new_words)} new words detected.")
-    logging.info(f"Total cuts: {total_cuts}")
-    context_collector.add_new_words(new_words)
-    if bert_encoder is not None:
-        bert_encoder.free_up()
+    if False:
+        new_words = list()
+        logging.info("Looking for new words in train+dev cuts...")
+        total_cuts = 0
+        for cut_idx, cut in enumerate(itertools.chain(train_cuts, valid_cuts)):
+            total_cuts += 1
+            # if cut_idx % 10000 == 0:
+            #     logging.info(f"cut_idx: {cut_idx}")
+            text = cut.supervisions[0].text
+            for word in text.split():
+                if word not in context_collector.common_words or \
+                    word not in context_collector.rare_words:
+                        new_words.append(word)
+        logging.info(f"{len(new_words)} new words detected.")
+        logging.info(f"Total cuts: {total_cuts}")
+        context_collector.add_new_words(new_words)
+        if bert_encoder is not None:
+            bert_encoder.free_up()
 
     for epoch in range(params.start_epoch, params.num_epochs + 1):
         scheduler.step_epoch(epoch - 1)
