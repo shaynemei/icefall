@@ -41,25 +41,43 @@ fi
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
     log "Stage 2: contextualized ASR with WFST on-the-fly shallow fusion"
 
-    rnnlm_dir="/export/fs04/a12/rhuang/icefall_align/egs/spgispeech/LM/my-rnnlm-exp"
-    lang_dir="/export/fs04/a12/rhuang/contextualizedASR/lm/LM/my-ngram-exp/mix"
+    path_to_pretrained_nnlm="/export/fs04/a12/rhuang/deep_smoothing/data_librispeech/icefall-librispeech-rnn-lm/"
+    # ln -s $path_to_pretrained_nnlm/exp/pretrained.pt $path_to_pretrained_nnlm/exp/epoch-999.pt
+    lm_type="rnn"
 
-    python pruned_transducer_stateless2/decode_pretrained.py \
-        --checkpoint tmp/icefall-asr-spgispeech-pruned-transducer-stateless2/exp/pretrained.pt \
-        --bpe-model tmp/icefall-asr-spgispeech-pruned-transducer-stateless2/data/lang_bpe_500/bpe.model \
-        --exp-dir tmp/icefall-asr-spgispeech-pruned-transducer-stateless2/exp20211206 \
-        --decoding-method modified_beam_search_rnnlm_shallow_fusion_biased \
-        --beam-size 4 \
-        --rnn-lm-scale 0.3 \
-        --rnn-lm-exp-dir $rnnlm_dir \
-        --rnn-lm-epoch 13 \
-        --rnn-lm-avg 1 \
-        --rnn-lm-num-layers 2 \
-        --rnn-lm-hidden-dim 200 \
-        --rnn-lm-embedding-dim 800 \
-        --rnn-lm-tie-weights false \
-        --lang-dir $lang_dir \
-        --biased-lm-scale 10
+    tokens_ngram_order=2
+    for m in modified_beam_search_LODR ; do
+        for epoch in $epochs; do
+            for avg in $avgs; do
+                ./pruned_transducer_stateless7_context/decode.py \
+                    --epoch $epoch \
+                    --avg $avg \
+                    --use-averaged-model $use_averaged_model \
+                    --exp-dir $exp_dir \
+                    --lang-dir data/lang_bpe_500 \
+                    --max-duration 600 \
+                    --decoding-method $m \
+                    --beam-size 4 \
+                    --max-contexts 4 \
+                    --use-shallow-fusion true \
+                    --lm-type $lm_type \
+                    --lm-exp-dir $path_to_pretrained_nnlm/exp \
+                    --lm-epoch 999 \
+                    --lm-scale 0.4 \
+                    --lm-avg 1 \
+                    --rnn-lm-num-layers 3 \
+                    --rnn-lm-tie-weights 1 \
+                    --tokens-ngram $tokens_ngram_order \
+                    --ngram-lm-scale -0.16 \
+                    --context-dir "data/fbai-speech/is21_deep_bias/" \
+                    --n-distractors $n_distractors \
+                    --keep-ratio 1.0 --no-wfst-lm-biasing false --biased-lm-scale 11
+                # --is-predefined true
+                # --no-encoder-biasing true --no-decoder-biasing true
+                # --no-wfst-lm-biasing false --biased-lm-scale 11
+            done
+        done
+    done
 fi
 
 if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then

@@ -78,7 +78,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
             --decoding-method $m \
             --context-dir "data/fbai-speech/is21_deep_bias/" \
             --n-distractors $n_distractors \
-            --keep-ratio 1.0 --is-predefined true --no-wfst-lm-biasing false --biased-lm-scale 10
+            --keep-ratio 1.0 --is-predefined true --no-wfst-lm-biasing false --biased-lm-scale 9 --no-encoder-biasing true --no-decoder-biasing true
         # --is-full-context true
         # --n-distractors 0
         # --no-encoder-biasing true --no-decoder-biasing true
@@ -122,13 +122,13 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   # path_to_pretrained_asr_model="/export/fs04/a12/rhuang/deep_smoothing/data_librispeech/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/"
   # ln -s $path_to_pretrained_asr_model/exp/pretrained.pt $path_to_pretrained_asr_model/exp/epoch-999.pt
 
-  # path_to_pretrained_nnlm="/export/fs04/a12/rhuang/deep_smoothing/data_librispeech/icefall-librispeech-rnn-lm/"
-  # # ln -s $path_to_pretrained_nnlm/exp/pretrained.pt $path_to_pretrained_nnlm/exp/epoch-999.pt
-  # lm_type="rnn"
-
-  path_to_pretrained_nnlm="/export/fs04/a12/rhuang/deep_smoothing/data_librispeech/icefall-librispeech-transformer-lm"
+  path_to_pretrained_nnlm="/export/fs04/a12/rhuang/deep_smoothing/data_librispeech/icefall-librispeech-rnn-lm/"
   # ln -s $path_to_pretrained_nnlm/exp/pretrained.pt $path_to_pretrained_nnlm/exp/epoch-999.pt
-  lm_type="transformer"
+  lm_type="rnn"
+
+  # path_to_pretrained_nnlm="/export/fs04/a12/rhuang/deep_smoothing/data_librispeech/icefall-librispeech-transformer-lm"
+  # # ln -s $path_to_pretrained_nnlm/exp/pretrained.pt $path_to_pretrained_nnlm/exp/epoch-999.pt
+  # lm_type="transformer"
 
   tokens_ngram_order=2
   for m in modified_beam_search_LODR ; do
@@ -158,6 +158,8 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
             --n-distractors $n_distractors \
             --keep-ratio 1.0
         # --is-predefined true
+        # --no-encoder-biasing true --no-decoder-biasing true
+        # --no-wfst-lm-biasing false --biased-lm-scale 10
       done
     done
   done

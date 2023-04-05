@@ -154,7 +154,6 @@ from beam_search import (
     modified_beam_search_lm_shallow_fusion,
     modified_beam_search_LODR,
     modified_beam_search_ngram_rescoring,
-    modified_beam_search_LODR_biased,
 )
 from train import add_model_arguments, get_params, get_transducer_model
 from egs.librispeech.ASR.pruned_transducer_stateless7_context.context_collector import ContextCollector
@@ -693,20 +692,6 @@ def decode_one_batch(
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
-            sp=sp,
-            LODR_lm=ngram_lm,
-            LODR_lm_scale=ngram_lm_scale,
-            LM=LM,
-        )
-        for hyp in sp.decode(hyp_tokens):
-            hyps.append(hyp.split())
-    elif params.decoding_method == "modified_beam_search_LODR_biased":
-        hyp_tokens = modified_beam_search_LODR_biased(
-            model=model,
-            encoder_out=encoder_out,
-            encoder_out_lens=encoder_out_lens,
-            beam=params.beam_size,
-            sp=sp,
             LODR_lm=ngram_lm,
             LODR_lm_scale=ngram_lm_scale,
             LM=LM,
@@ -943,7 +928,6 @@ def main():
         "modified_beam_search",
         "modified_beam_search_lm_shallow_fusion",
         "modified_beam_search_LODR",
-        "modified_beam_search_LODR_biased",
     )
     params.res_dir = params.exp_dir / params.decoding_method
 
