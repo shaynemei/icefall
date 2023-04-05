@@ -274,16 +274,16 @@ class ContextCollector(torch.utils.data.Dataset):
                 num_words_per_utt.append(len(rare_words_pieces))
                 word_lengths.extend([len(pieces) for pieces in rare_words_pieces])
 
-                # TODO: this is a bug here: this will effectively modify the entries in 'self.all_words2embeddings'!!!
-                for pieces in rare_words_pieces:
-                    pieces += [pad_token] * (max_pieces_len - len(pieces))
-                word_list.extend(rare_words_pieces)
-
-                # # Correction:
-                # rare_words_pieces_padded = list()
+                # # TODO: this is a bug here: this will effectively modify the entries in 'self.all_words2embeddings'!!!
                 # for pieces in rare_words_pieces:
-                #     rare_words_pieces_padded.append(pieces + [pad_token] * (max_pieces_len - len(pieces)))
-                # word_list.extend(rare_words_pieces_padded)
+                #     pieces += [pad_token] * (max_pieces_len - len(pieces))
+                # word_list.extend(rare_words_pieces)
+
+                # Correction:
+                rare_words_pieces_padded = list()
+                for pieces in rare_words_pieces:
+                    rare_words_pieces_padded.append(pieces + [pad_token] * (max_pieces_len - len(pieces)))
+                word_list.extend(rare_words_pieces_padded)
 
             word_list = torch.tensor(word_list, dtype=torch.int32)
             # word_lengths = torch.tensor(word_lengths, dtype=torch.int32)

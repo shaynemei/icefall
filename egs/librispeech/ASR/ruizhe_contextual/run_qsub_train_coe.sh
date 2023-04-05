@@ -79,16 +79,17 @@ path_to_pretrained_asr_model=/exp/rhuang/librispeech/pretrained2/icefall-asr-lib
 # exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_continue3
 # exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_bert_stage1
 # exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_continue4
-exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_stage1
+# exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_stage1
+exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_stage2
 mkdir -p $exp_dir
-if [ ! -f $exp_dir/epoch-1.pt ]; then
-  ln -s $path_to_pretrained_asr_model/exp/pretrained.pt $exp_dir/epoch-1.pt
-fi
+# if [ ! -f $exp_dir/epoch-1.pt ]; then
+#   ln -s $path_to_pretrained_asr_model/exp/pretrained.pt $exp_dir/epoch-1.pt
+# fi
 
 # Epoch 10 from stage 1:
-# if [ ! -f $exp_dir/epoch-1.pt ]; then
-#   ln -s /exp/rhuang/icefall_latest/egs/librispeech/ASR/pruned_transducer_stateless7_context/exp/exp_libri_full_c-1_stage1/epoch-10.pt $exp_dir/epoch-1.pt
-# fi
+if [ ! -f $exp_dir/epoch-1.pt ]; then
+  ln -s /exp/rhuang/icefall_latest/egs/librispeech/ASR/pruned_transducer_stateless7_context/exp/exp_libri_full_c-1_stage1/epoch-30.pt $exp_dir/epoch-1.pt
+fi
 
 # Continue training from the wrong model
 # exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_continue3
@@ -200,4 +201,4 @@ python pruned_transducer_stateless7_context/train.py \
 # Stage2:
 # COE: /exp/draj/mini_scale_2022/icefall/egs/librispeech/ASR/train_ruizhe.sh
 #      /exp/draj/mini_scale_2022/icefall/egs/librispeech/ASR/pruned_transducer_stateless7_context/exp/log/log-train-10585484.out => stage2 from epoch-10.pt of stage1
-
+# COE: /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10586081.out => stage2 from epoch-30.pt of stage1
