@@ -22,7 +22,6 @@ class ContextCollector(torch.utils.data.Dataset):
         keep_ratio: float = 1.0,
         is_full_context: bool = False,
         backoff_id: int = None,
-        wfst_scale: float = 0.1,
     ):
         self.sp = sp
         self.bert_encoder = bert_encoder
@@ -34,7 +33,6 @@ class ContextCollector(torch.utils.data.Dataset):
         self.is_full_context = is_full_context   # use all words (rare or common) in the context
         # self.embedding_dim = self.bert_encoder.bert_model.config.hidden_size
         self.backoff_id = backoff_id
-        self.wfst_scale = wfst_scale
 
         logging.info(f"""
             n_distractors={n_distractors},
@@ -43,7 +41,6 @@ class ContextCollector(torch.utils.data.Dataset):
             keep_ratio={keep_ratio},
             is_full_context={is_full_context},
             bert_encoder={bert_encoder.name if bert_encoder is not None else None},
-            wfst_scale={wfst_scale},
         """)
 
         self.common_words = None

@@ -163,7 +163,7 @@ from egs.librispeech.ASR.pruned_transducer_stateless7_context.context_encoder_ls
 from egs.librispeech.ASR.pruned_transducer_stateless7_context.context_encoder_pretrained import ContextEncoderPretrained
 from egs.librispeech.ASR.pruned_transducer_stateless7_context.bert_encoder import BertEncoder
 
-from icefall import LmScorer, NgramLm
+from icefall import LmScorer, NgramLm, BiasedNgramLm
 from icefall.checkpoint import (
     average_checkpoints,
     average_checkpoints_with_averaged_model,
@@ -455,6 +455,14 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--no-wfst-lm-biasing",
+        type=str2bool,
+        default=True,
+        help=""".
+        """,
+    )
+
+    parser.add_argument(
         "--is-full-context",
         type=str2bool,
         default=False,
@@ -478,11 +486,8 @@ def get_parser():
     parser.add_argument(
         "--biased-lm-scale",
         type=float,
-        default=0.01,
-        help="""
-        Used only when --decoding_method is modified_beam_search_LODR_biased.
-        It specifies the scale for biased n-gram LM scores.
-        """,
+        default=0.0,
+        help="",
     )
 
     add_model_arguments(parser)
@@ -581,11 +586,17 @@ def decode_one_batch(
     model.scratch_space["contexts_mask"] = contexts_mask
     model.scratch_space["sp"] = sp
 
-    if "biased" in params.decoding_method:
+    if not params.no_wfst_lm_biasing:
         fsa_list, fsa_sizes, num_words_per_utt2 = \
             context_collector.get_context_word_wfst(batch)
-        model.scratch_space["biased_fsa_list"] = fsa_list
-        model.scratch_space["biased_fsa_scale"] = context_collector.wfst_scale
+        biased_lm_list = [
+            BiasedNgramLm(
+                fst=fsa, 
+                backoff_id=context_collector.backoff_id
+            ) for fsa in fsa_list
+        ]
+        model.scratch_space["biased_lm_list"] = biased_lm_list
+    model.scratch_space["biased_lm_scale"] = params.biased_lm_scale
 
     encoder_biasing_out, attn = model.encoder_biasing_adapter.forward(encoder_out, contexts, contexts_mask)
     if not model.no_encoder_biasing:
@@ -972,8 +983,8 @@ def main():
             params.suffix += (
                 f"-LODR-{params.tokens_ngram}gram-scale-{params.ngram_lm_scale}"
             )
-        if "biased" in params.decoding_method:
-            params.suffix += f"-biased-scale-{params.biased_lm_scale}"
+    if not params.no_wfst_lm_biasing:
+        params.suffix += f"-biased-scale-{params.biased_lm_scale}"
 
     if params.use_averaged_model:
         params.suffix += "-use-averaged-model"
@@ -1015,7 +1026,7 @@ def main():
             n_distractors=params.n_distractors,
             keep_ratio=params.keep_ratio,
             is_full_context=params.is_full_context,
-            wfst_scale=params.biased_lm_scale,
+            backoff_id=params.backoff_id,
         )
         # bert_encoder.free_up()
     else:
@@ -1027,7 +1038,7 @@ def main():
             n_distractors=params.n_distractors,
             keep_ratio=params.keep_ratio,
             is_full_context=params.is_full_context,
-            wfst_scale=params.biased_lm_scale
+            backoff_id=params.backoff_id,
         )
 
     logging.info("About to create model")
@@ -1035,6 +1046,7 @@ def main():
 
     model.no_encoder_biasing = params.no_encoder_biasing
     model.no_decoder_biasing = params.no_decoder_biasing
+    model.no_wfst_lm_biasing = params.no_wfst_lm_biasing
 
     if not params.use_averaged_model:
         if params.iter > 0:

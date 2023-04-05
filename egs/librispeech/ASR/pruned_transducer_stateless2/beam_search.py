@@ -25,6 +25,7 @@ import torch
 from model import Transducer
 
 from icefall import NgramLm, NgramLmStateCost
+from icefall import BiasedNgramLm, BiasedNgramLmStateBonus
 from icefall.decode import Nbest, one_best_decoding
 from icefall.lm_wrapper import LmScorer
 from icefall.rnn_lm.model import RnnLmModel
@@ -742,6 +743,9 @@ class Hypothesis:
     # N-gram LM state
     state_cost: Optional[NgramLmStateCost] = None
 
+    # Biased LM state
+    state_bonus: Optional[BiasedNgramLmStateBonus] = None
+
     @property
     def key(self) -> str:
         """Return a string representation of self.ys"""
@@ -922,6 +926,8 @@ def modified_beam_search(
     assert encoder_out.ndim == 3, encoder_out.shape
     assert encoder_out.size(0) >= 1, encoder_out.size(0)
 
+    biased_lm_scale = model.scratch_space["biased_lm_scale"]
+
     packed_encoder_out = torch.nn.utils.rnn.pack_padded_sequence(
         input=encoder_out,
         lengths=encoder_out_lens.cpu(),
@@ -939,13 +945,21 @@ def modified_beam_search(
     assert torch.all(encoder_out_lens > 0), encoder_out_lens
     assert N == batch_size_list[0], (N, batch_size_list)
 
+    sorted_indices = packed_encoder_out.sorted_indices.tolist()
+
     B = [HypothesisList() for _ in range(N)]
     for i in range(N):
+        if "biased_lm_list" in model.scratch_space:
+            biased_lm = model.scratch_space["biased_lm_list"][sorted_indices[i]]
+        else:
+            biased_lm = None
+
         B[i].add(
             Hypothesis(
                 ys=[blank_id] * context_size,
                 log_prob=torch.zeros(1, dtype=torch.float32, device=device),
                 timestamp=[],
+                state_bonus=BiasedNgramLmStateBonus(biased_lm),
             )
         )
 
@@ -954,7 +968,6 @@ def modified_beam_search(
     # import pdb; pdb.set_trace()
     contexts = model.scratch_space["contexts"]
     contexts_mask = model.scratch_space["contexts_mask"]
-    sorted_indices = packed_encoder_out.sorted_indices.tolist()
 
     offset = 0
     finalized_B = []
@@ -1047,9 +1060,17 @@ def modified_beam_search(
                     new_ys.append(new_token)
                     new_timestamp.append(t)
 
-                new_log_prob = topk_log_probs[k]
+                    state_bonus = hyp.state_bonus.forward_one_step(new_token)
+                    current_state_bonus = state_bonus.lm_score - hyp.state_bonus.lm_score
+                    state_bonus_score = biased_lm_scale * current_state_bonus
+                else:
+                    state_bonus = hyp.state_bonus
+                    state_bonus_score = 0
+
+                new_log_prob = topk_log_probs[k] + state_bonus_score
                 new_hyp = Hypothesis(
-                    ys=new_ys, log_prob=new_log_prob, timestamp=new_timestamp
+                    ys=new_ys, log_prob=new_log_prob, timestamp=new_timestamp,
+                    state_bonus=state_bonus,
                 )
                 B[i].add(new_hyp)
 
@@ -2199,6 +2220,7 @@ def modified_beam_search_LODR_biased(
     assert encoder_out.size(0) >= 1, encoder_out.size(0)
     assert LM is not None
     lm_scale = LM.lm_scale
+    biased_lm_scale = model.scratch_space["biased_lm_scale"]
 
     packed_encoder_out = torch.nn.utils.rnn.pack_padded_sequence(
         input=encoder_out,
@@ -2223,8 +2245,12 @@ def modified_beam_search_LODR_biased(
     lens = torch.tensor([1]).to(device)
     init_score, init_states = LM.score_token(sos_token, lens)
 
+    sorted_indices = packed_encoder_out.sorted_indices.tolist()
+
     B = [HypothesisList() for _ in range(N)]
     for i in range(N):
+        biased_lm = model.scratch_space["biased_lm_list"][sorted_indices[i]]
+
         B[i].add(
             Hypothesis(
                 ys=[blank_id] * context_size,
@@ -2234,6 +2260,9 @@ def modified_beam_search_LODR_biased(
                 state_cost=NgramLmStateCost(
                     LODR_lm
                 ),  # state of the source domain ngram
+                state_bonus=BiasedNgramLmStateBonus(
+                    biased_lm
+                ),
             )
         )
 
@@ -2241,7 +2270,6 @@ def modified_beam_search_LODR_biased(
 
     contexts = model.scratch_space["contexts"]
     contexts_mask = model.scratch_space["contexts_mask"]
-    sorted_indices = packed_encoder_out.sorted_indices.tolist()
 
     offset = 0
     finalized_B = []
@@ -2397,9 +2425,11 @@ def modified_beam_search_LODR_biased(
 
                     ys.append(new_token)
                     state_cost = hyp.state_cost.forward_one_step(new_token)
+                    state_bonus = hyp.state_bonus.forward_one_step(new_token)
 
                     # calculate the score of the latest token
                     current_ngram_score = state_cost.lm_score - hyp.state_cost.lm_score
+                    current_ngram_bonus = state_bonus.lm_score - hyp.state_bonus.lm_score
 
                     assert current_ngram_score <= 0.0, (
                         state_cost.lm_score,
@@ -2410,6 +2440,7 @@ def modified_beam_search_LODR_biased(
                     hyp_log_prob += (
                         lm_score[new_token] * lm_scale
                         + LODR_lm_scale * current_ngram_score
+                        + biased_lm_scale * current_ngram_bonus
                     )  # add the lm score
 
                     lm_score = scores[count]
@@ -2421,6 +2452,7 @@ def modified_beam_search_LODR_biased(
                     count += 1
                 else:
                     state_cost = hyp.state_cost
+                    state_bonus = hyp.state_bonus
 
                 new_hyp = Hypothesis(
                     ys=ys,
@@ -2428,6 +2460,7 @@ def modified_beam_search_LODR_biased(
                     state=state,
                     lm_score=lm_score,
                     state_cost=state_cost,
+                    state_bonus=state_bonus,
                 )
                 B[i].add(new_hyp)
 

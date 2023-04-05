@@ -82,6 +82,7 @@ class Transducer(nn.Module):
         self.scratch_space = None
         self.no_encoder_biasing = None
         self.no_decoder_biasing = None
+        self.no_wfst_lm_biasing = None
 
     def forward(
         self,

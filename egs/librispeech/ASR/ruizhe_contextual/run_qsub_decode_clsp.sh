@@ -47,11 +47,10 @@ n_distractors=100
 # n_distractors=-1
 exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_continue3
 # exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_wronglower/
-exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c100_bert_stage1
-exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c-1_continue4
+# exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c100_bert_stage1
+# exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c-1_continue4
 
 epochs=17
-epochs=39
 avgs=1
 use_averaged_model=$([ "$avgs" = 1 ] && echo "false" || echo "true")
 
@@ -68,6 +67,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   for m in modified_beam_search ; do
     for epoch in $epochs; do
       for avg in $avgs; do
+        # python -m pdb -c continue
         ./pruned_transducer_stateless7_context/decode.py \
             --epoch $epoch \
             --avg $avg \
@@ -78,12 +78,13 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
             --decoding-method $m \
             --context-dir "data/fbai-speech/is21_deep_bias/" \
             --n-distractors $n_distractors \
-            --keep-ratio 1.0 --is-predefined true
+            --keep-ratio 1.0 --is-predefined true --no-wfst-lm-biasing false --biased-lm-scale 10
         # --is-full-context true
         # --n-distractors 0
         # --no-encoder-biasing true --no-decoder-biasing true
         # --is-predefined true
         # --is-pretrained-context-encoder true
+        # --no-wfst-lm-biasing false --biased-lm-scale 10
       done
     done
   done
