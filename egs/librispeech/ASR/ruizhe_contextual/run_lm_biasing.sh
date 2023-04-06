@@ -36,10 +36,39 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
     #     --context-dir "data/lang/context" \
 fi
 
+if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
+    log "Stage 1: Ccontextualized ASR with WFST on-the-fly shallow fusion"
+
+    for m in modified_beam_search ; do
+        for epoch in $epochs; do
+            for avg in $avgs; do
+                # python -m pdb -c continue
+                ./pruned_transducer_stateless7_context/decode.py \
+                    --epoch $epoch \
+                    --avg $avg \
+                    --use-averaged-model $use_averaged_model \
+                    --exp-dir $exp_dir \
+                    --feedforward-dims  "1024,1024,2048,2048,1024" \
+                    --max-duration 600 \
+                    --decoding-method $m \
+                    --context-dir "data/fbai-speech/is21_deep_bias/" \
+                    --n-distractors $n_distractors \
+                    --keep-ratio 1.0 --is-predefined true --no-wfst-lm-biasing false --biased-lm-scale 9 --no-encoder-biasing true --no-decoder-biasing true
+                # --is-full-context true
+                # --n-distractors 0
+                # --no-encoder-biasing true --no-decoder-biasing true
+                # --is-predefined true
+                # --is-pretrained-context-encoder true
+                # --no-wfst-lm-biasing false --biased-lm-scale 10
+            done
+        done
+    done
+fi
+
 # /export/fs04/a12/rhuang/icefall_align/egs/spgispeech/ASR/pruned_transducer_stateless2/decode_pretrained.py
 # https://github.com/huangruizhe/icefall/blob/biasing/egs/spgispeech/ASR/pruned_transducer_stateless2/decode_pretrained.py
-if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
-    log "Stage 2: contextualized ASR with WFST on-the-fly shallow fusion"
+if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
+    log "Stage 3: contextualized ASR with WFST on-the-fly shallow fusion + RNNLM + LODR"
 
     path_to_pretrained_nnlm="/export/fs04/a12/rhuang/deep_smoothing/data_librispeech/icefall-librispeech-rnn-lm/"
     # ln -s $path_to_pretrained_nnlm/exp/pretrained.pt $path_to_pretrained_nnlm/exp/epoch-999.pt
