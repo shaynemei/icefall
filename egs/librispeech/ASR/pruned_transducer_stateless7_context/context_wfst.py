@@ -105,6 +105,9 @@ def generate_context_graph_simple(
     
     return fsa_list, fsa_sizes
 
+def create_dictionary_trie(words_pieces_list):
+    pass
+
 def generate_context_graph_nfa(
     words_pieces_list: list,
     backoff_id: int,
@@ -131,6 +134,8 @@ def generate_context_graph_nfa(
     Returns:
       Return an `openfst` object representing the context graph.
     """
+    # TODO: we can improve efficiency by creating a dictionary "trie"
+
     # note: `k2_to_openfst` will multiply it with -1. So it will become +1 in the end.
     flip = -1
 

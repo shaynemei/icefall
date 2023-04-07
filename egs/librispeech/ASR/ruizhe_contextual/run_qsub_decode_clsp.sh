@@ -49,6 +49,7 @@ exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors
 # exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_wronglower/
 # exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c100_bert_stage1
 # exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c-1_continue4
+exp_dir=
 
 epochs=17
 avgs=1
