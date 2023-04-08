@@ -66,20 +66,20 @@ n_distractors=-1
 
 
 # Stage1: Continue training from pretrained.pt
-path_to_pretrained_asr_model="/exp/rhuang/icefall_latest/egs/spgispeech/ASR/pretrained/icefall-asr-spgispeech-pruned-transducer-stateless2"
-exp_dir=pruned_transducer_stateless2_context/exp/exp_libri_full_c${n_distractors}_stage1
-mkdir -p $exp_dir
-if [ ! -f $exp_dir/epoch-1.pt ]; then
-  ln -s $path_to_pretrained_asr_model/exp/pretrained.pt $exp_dir/epoch-1.pt
-fi
-
-# # Stage2
-# path_to_pretrained_asr_model="/exp/rhuang/icefall_latest/egs/spgispeech/ASR/pruned_transducer_stateless2_context/exp/exp_libri_full_c-1_stage1/"
-# exp_dir=pruned_transducer_stateless2_context/exp/exp_libri_full_c${n_distractors}_stage2
+# path_to_pretrained_asr_model="/exp/rhuang/icefall_latest/egs/spgispeech/ASR/pretrained/icefall-asr-spgispeech-pruned-transducer-stateless2"
+# exp_dir=pruned_transducer_stateless2_context/exp/exp_libri_full_c${n_distractors}_stage1
 # mkdir -p $exp_dir
 # if [ ! -f $exp_dir/epoch-1.pt ]; then
-#   ln -s $path_to_pretrained_asr_model/checkpoint-96000.pt $exp_dir/epoch-1.pt
+#   ln -s $path_to_pretrained_asr_model/exp/pretrained.pt $exp_dir/epoch-1.pt
 # fi
+
+# Stage2
+path_to_pretrained_asr_model="/exp/rhuang/icefall_latest/egs/spgispeech/ASR/pruned_transducer_stateless2_context/exp/exp_libri_full_c-1_stage1/"
+exp_dir=pruned_transducer_stateless2_context/exp/exp_libri_full_c${n_distractors}_stage2
+mkdir -p $exp_dir
+if [ ! -f $exp_dir/epoch-1.pt ]; then
+  ln -s $path_to_pretrained_asr_model/checkpoint-72000.pt $exp_dir/epoch-1.pt
+fi
 
 
 # ./pruned_transducer_stateless2/train.py \
@@ -104,7 +104,7 @@ python pruned_transducer_stateless2_context/train.py \
   --keep-ratio 1.0 \
   --start-epoch 2 \
   --num-epochs 30 \
-  --n-distractors $n_distractors --n-distractors 0 --is-full-context true
+  --n-distractors $n_distractors
 
 # Stage1: --n-distractors 0 --is-full-context true
 # --start-batch 
@@ -125,5 +125,6 @@ python pruned_transducer_stateless2_context/train.py \
 # /exp/rhuang/icefall_latest/egs/spgispeech/ASR/ruizhe_contextual/log/log-train-10588318.out <= max_duration=900
 
 # Stage2:
+# /exp/rhuang/icefall_latest/egs/spgispeech/ASR/ruizhe_contextual/log/log-train-10588562.out
 # 
 

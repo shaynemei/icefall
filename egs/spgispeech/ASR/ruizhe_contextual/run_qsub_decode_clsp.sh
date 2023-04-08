@@ -73,6 +73,8 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
       --beam-size 4
 fi
 
+# /export/fs04/a12/rhuang/icefall_align/egs/spgispeech/ASR/tmp/icefall-asr-spgispeech-pruned-transducer-stateless2/exp/modified_beam_search/log-decode-epoch-999-avg-1-modified_beam_search-beam-size-4-2023-04-08-13-31-50
+
 # Use biasing
 if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   # greedy_search fast_beam_search

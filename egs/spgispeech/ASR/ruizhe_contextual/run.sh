@@ -16,8 +16,8 @@ scp -r rhuang@login.clsp.jhu.edu:/export/fs04/a12/rhuang/icefall_align2/egs/spgi
 scp -r rhuang@login.clsp.jhu.edu:/export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/data/rare_words data/.
 
 #### re-use fbank for un-normalized text
-cd /exp/rhuang/icefall_latest/egs/spgispeech/ASR/
-mamba activate /exp/rhuang/mambaforge/envs/icefall2
+# cd /exp/rhuang/icefall_latest/egs/spgispeech/ASR/
+# mamba activate /exp/rhuang/mambaforge/envs/icefall2
 python ruizhe_contextual/get_train_cuts.py  # This seems not working!
 python ruizhe_contextual/get_train_cuts2.py
 
@@ -112,6 +112,8 @@ output_dir = Path("data/fbank")
 
 sampling_rate = 16000
 num_mel_bins = 80
-
-
 """
+
+
+/export/fs04/a12/rhuang/contextualizedASR/data/ec53_kaldi_sp_gentle/20220129/cuts3.jsonl.gz
+python ruizhe_contextual/get_train_cuts2.py

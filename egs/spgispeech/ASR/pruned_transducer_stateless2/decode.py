@@ -351,7 +351,7 @@ def decode_dataset(
     if params.decoding_method == "greedy_search":
         log_interval = 100
     else:
-        log_interval = 2
+        log_interval = 20
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
@@ -539,8 +539,10 @@ def main():
 
     dev_cuts = spgispeech.dev_cuts()
     val_cuts = spgispeech.val_cuts()
-    # ec53_cuts = CutSet.from_file("/export/fs04/a12/rhuang/contextualizedASR/data/ec53_kaldi_sp_gentle/20220129/cuts3.jsonl.gz")
-    ec53_cuts = CutSet.from_file("/export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/data/manifests/cuts_ec53_norm.jsonl.gz")
+
+    ec53_cuts_file = "/export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/data/manifests/cuts_ec53_norm.jsonl.gz"
+    logging.info(f"Loading cuts from: {ec53_cuts_file}")
+    ec53_cuts = CutSet.from_file(ec53_cuts_file)
     # ec53_cuts = ec53_cuts.sample(n_cuts=10)
     ec53_cuts.describe()
 
@@ -550,8 +552,8 @@ def main():
 
     # test_sets = ["dev", "val"]
     # test_dl = [dev_dl, val_dl]
-    test_sets = ["ec53", "dev", "val"]
-    test_dl = [ec53_dl, dev_dl, val_dl]
+    test_sets = ["ec53"]
+    test_dl = [ec53_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(

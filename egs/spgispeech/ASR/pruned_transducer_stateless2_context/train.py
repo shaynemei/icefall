@@ -535,6 +535,8 @@ def load_checkpoint_if_available(
         # elif params.start_epoch == 2:
         #     params[k] = saved_params_hard_wired[k]
         logging.info(f"{k}: {params[k]}")
+    
+    params["batch_idx_train"] = 25000
 
     if params.start_batch > 0:
         if "cur_epoch" in saved_params:

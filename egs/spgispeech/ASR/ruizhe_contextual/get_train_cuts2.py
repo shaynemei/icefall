@@ -18,7 +18,9 @@ in_file_name = "/exp/rhuang/icefall/egs/spgispeech/ASR/data/manifests_no_norm/cu
 out_file_name = "/exp/rhuang/icefall_latest/egs/spgispeech/ASR/data/manifests/cuts_train_shuf.jsonl.gz"
 # in_file_name="/exp/rhuang/icefall_latest/egs/spgispeech/ASR/data/manifests/cuts_dev.jsonl.gz"
 # out_file_name="/exp/rhuang/icefall_latest/egs/spgispeech/ASR/data/manifests/cuts_devaaa.jsonl.gz"
-in_file_name = "/export/fs04/a12/rhuang/contextualizedASR/data/ec53_kaldi_sp_gentle/20220129/cuts3.jsonl.gz"
+# in_file_name = "/export/fs04/a12/rhuang/contextualizedASR/data/ec53_kaldi_sp_gentle/20220129/cuts3.jsonl.gz"
+# out_file_name = "/export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/data/manifests/cuts_ec53_norm.jsonl.gz"
+in_file_name = "/export/fs04/a12/rhuang/contextualizedASR/data/ec53_kaldi_heuristics11_temp/cuts_no_feat_20230109050816_merged.jsonl.gz"
 out_file_name = "/export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/data/manifests/cuts_ec53_norm.jsonl.gz"
 
 print(f"Loading cuts from: {in_file_name}")
