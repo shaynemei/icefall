@@ -13,7 +13,7 @@ from context_wfst import generate_context_graph_nfa
 class ContextCollector(torch.utils.data.Dataset):
     def __init__(
         self, 
-        path_is21_deep_bias: Path,
+        path_rare_words: Path,
         sp: spm.SentencePieceProcessor,
         bert_encoder: BertEncoder = None,
         n_distractors: int = 100,
@@ -25,7 +25,7 @@ class ContextCollector(torch.utils.data.Dataset):
     ):
         self.sp = sp
         self.bert_encoder = bert_encoder
-        self.path_is21_deep_bias = path_is21_deep_bias
+        self.path_rare_words = path_rare_words
         self.n_distractors = n_distractors
         self.ratio_distractors = ratio_distractors
         self.is_predefined = is_predefined
@@ -48,6 +48,25 @@ class ContextCollector(torch.utils.data.Dataset):
         self.all_words = []
         self.all_words2embeddings = None
         self.all_words2pieces = dict()
+
+        with open(path_rare_words / "all_rare_words.txt", "r") as fin:
+            self.rare_words = [l.strip() for l in fin if len(l) > 0]
+        
+        with open(path_rare_words / "common_words_6k.txt", "r") as fin:
+            self.common_words = [l.strip() for l in fin if len(l) > 0]
+        
+        self.all_words = self.rare_words + self.common_words  # sp needs a list of strings, can't be a set
+        self.common_words = set(self.common_words)
+        self.rare_words = set(self.rare_words)
+
+        logging.info(f"Number of common words: {len(self.common_words)}. Examples: {random.sample(self.common_words, 5)}")
+        logging.info(f"Number of rare words: {len(self.rare_words)}. Examples: {random.sample(self.rare_words, 5)}")
+        logging.info(f"Number of all words: {len(self.all_words)}. Examples: {random.sample(self.all_words, 5)}")
+
+        if self.sp is not None:
+            all_words2pieces = sp.encode(self.all_words, out_type=int)  # a list of list of int
+            self.all_words2pieces = {w: pieces for w, pieces in zip(self.all_words, all_words2pieces)}
+            logging.info(f"len(self.all_words2pieces)={len(self.all_words2pieces)}")
 
         self.temp_dict = None
 

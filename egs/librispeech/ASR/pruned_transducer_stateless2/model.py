@@ -69,6 +69,12 @@ class Transducer(nn.Module):
         self.simple_am_proj = ScaledLinear(encoder_dim, vocab_size, initial_speed=0.5)
         self.simple_lm_proj = ScaledLinear(decoder_dim, vocab_size)
 
+        # For temporary convenience
+        self.scratch_space = dict()
+        self.no_encoder_biasing = True
+        self.no_decoder_biasing = True
+        self.no_wfst_lm_biasing = True
+
     def forward(
         self,
         x: torch.Tensor,

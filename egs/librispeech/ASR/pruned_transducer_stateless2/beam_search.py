@@ -926,7 +926,9 @@ def modified_beam_search(
     assert encoder_out.ndim == 3, encoder_out.shape
     assert encoder_out.size(0) >= 1, encoder_out.size(0)
 
-    biased_lm_scale = model.scratch_space["biased_lm_scale"]
+    biased_lm_scale = model.scratch_space["biased_lm_scale"] \
+      if model.scratch_space is not None and "biased_lm_scale" in model.scratch_space \
+        else 0
 
     packed_encoder_out = torch.nn.utils.rnn.pack_padded_sequence(
         input=encoder_out,

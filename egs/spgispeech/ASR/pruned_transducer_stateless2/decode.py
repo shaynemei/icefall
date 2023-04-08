@@ -83,6 +83,7 @@ from icefall.utils import (
     store_transcripts,
     write_error_stats,
 )
+from lhotse import CutSet
 
 
 def get_parser():
@@ -533,16 +534,24 @@ def main():
 
     # we need cut ids to display recognition results.
     args.return_cuts = True
+    args.on_the_fly_feats = True
     spgispeech = SPGISpeechAsrDataModule(args)
 
     dev_cuts = spgispeech.dev_cuts()
     val_cuts = spgispeech.val_cuts()
+    # ec53_cuts = CutSet.from_file("/export/fs04/a12/rhuang/contextualizedASR/data/ec53_kaldi_sp_gentle/20220129/cuts3.jsonl.gz")
+    ec53_cuts = CutSet.from_file("/export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/data/manifests/cuts_ec53_norm.jsonl.gz")
+    # ec53_cuts = ec53_cuts.sample(n_cuts=10)
+    ec53_cuts.describe()
 
     dev_dl = spgispeech.test_dataloaders(dev_cuts)
     val_dl = spgispeech.test_dataloaders(val_cuts)
+    ec53_dl = spgispeech.test_dataloaders(ec53_cuts)
 
-    test_sets = ["dev", "val"]
-    test_dl = [dev_dl, val_dl]
+    # test_sets = ["dev", "val"]
+    # test_dl = [dev_dl, val_dl]
+    test_sets = ["ec53", "dev", "val"]
+    test_dl = [ec53_dl, dev_dl, val_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(

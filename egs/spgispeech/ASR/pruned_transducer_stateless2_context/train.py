@@ -834,7 +834,7 @@ def train_one_epoch(
                 )
                 tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
 
-        if batch_idx > 0 and batch_idx % params.valid_interval == 0:
+        if batch_idx % params.valid_interval == 0:
             logging.info("Computing validation loss")
             valid_info = compute_validation_loss(
                 params=params,
@@ -904,7 +904,7 @@ def run(rank, world_size, args):
     if params.is_pretrained_context_encoder:
         bert_encoder = BertEncoder(device=device)
         context_collector = ContextCollector(
-            path_is21_deep_bias=params.context_dir,
+            path_rare_words=params.context_dir,
             sp=None,
             bert_encoder=bert_encoder,
             is_predefined=False,
@@ -915,7 +915,7 @@ def run(rank, world_size, args):
     else:
         bert_encoder=None
         context_collector = ContextCollector(
-            path_is21_deep_bias=params.context_dir,
+            path_rare_words=params.context_dir,
             sp=sp,
             bert_encoder=None,
             is_predefined=False,

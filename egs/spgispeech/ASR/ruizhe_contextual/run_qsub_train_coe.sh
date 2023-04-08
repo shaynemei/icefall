@@ -58,19 +58,28 @@ n_distractors=100
 n_distractors=0
 max_duration=700
 max_duration=900
+max_duration=1200
 n_distractors=-1
 # max_duration=700
 # n_distractors=500
 # max_duration=100
 
 
-# Continue training from pretrained.pt
+# Stage1: Continue training from pretrained.pt
 path_to_pretrained_asr_model="/exp/rhuang/icefall_latest/egs/spgispeech/ASR/pretrained/icefall-asr-spgispeech-pruned-transducer-stateless2"
 exp_dir=pruned_transducer_stateless2_context/exp/exp_libri_full_c${n_distractors}_stage1
 mkdir -p $exp_dir
 if [ ! -f $exp_dir/epoch-1.pt ]; then
   ln -s $path_to_pretrained_asr_model/exp/pretrained.pt $exp_dir/epoch-1.pt
 fi
+
+# # Stage2
+# path_to_pretrained_asr_model="/exp/rhuang/icefall_latest/egs/spgispeech/ASR/pruned_transducer_stateless2_context/exp/exp_libri_full_c-1_stage1/"
+# exp_dir=pruned_transducer_stateless2_context/exp/exp_libri_full_c${n_distractors}_stage2
+# mkdir -p $exp_dir
+# if [ ! -f $exp_dir/epoch-1.pt ]; then
+#   ln -s $path_to_pretrained_asr_model/checkpoint-96000.pt $exp_dir/epoch-1.pt
+# fi
 
 
 # ./pruned_transducer_stateless2/train.py \
@@ -91,7 +100,7 @@ python pruned_transducer_stateless2_context/train.py \
   --exp-dir $exp_dir \
   --prune-range 5 \
   --use-fp16 true \
-  --context-dir "" \
+  --context-dir "data/rare_words/" \
   --keep-ratio 1.0 \
   --start-epoch 2 \
   --num-epochs 30 \
@@ -102,10 +111,19 @@ python pruned_transducer_stateless2_context/train.py \
 # --is-pretrained-context-encoder true
 
 
-# Initial run: max_duration=700 is feasible
+# Initial run: max_duration=700 is feasible (Stage1)
 # /exp/rhuang/icefall_latest/egs/spgispeech/ASR/ruizhe_contextual/log/log-train-10587871.out
 # /exp/rhuang/icefall_latest/egs/spgispeech/ASR/ruizhe_contextual/log/log-train-10587888.out
 #    - https://tensorboard.dev/experiment/ZglzzMlsRouPL44pGk3AfA/
+# => wrong! 
+# data/manifests/cuts_train_shuf.jsonl.gz was not normalized!!
+# => moved to: pruned_transducer_stateless2_context/exp/exp_libri_full_c-1_stage1_nonorm
 
+# Stage1:
+# /exp/rhuang/icefall_latest/egs/spgispeech/ASR/ruizhe_contextual/log/log-train-10588317.out <= max_duration=1200
+#    - https://tensorboard.dev/experiment/uM39UVDdTXyUvJvSwjF9rw/
+# /exp/rhuang/icefall_latest/egs/spgispeech/ASR/ruizhe_contextual/log/log-train-10588318.out <= max_duration=900
 
+# Stage2:
+# 
 
