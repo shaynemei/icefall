@@ -84,6 +84,13 @@ scp -r rhuang@login.clsp.jhu.edu:/export/fs04/a12/rhuang/icefall_align2/egs/libr
 scp -r pruned_transducer_stateless7_context/exp/exp_libri_full/epoch-{1,2}*.pt rhuang@login.clsp.jhu.edu:/export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/pruned_transducer_stateless7_context/exp/exp_libri_full/.
 scp -r pruned_transducer_stateless7_context/exp/exp_libri_full_c100_continue3/epoch-10.pt rhuang@login.clsp.jhu.edu:/export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/pruned_transducer_stateless7_context/exp/exp_libri_full_c100_continue3/.
 
+cd /exp/rhuang/icefall_latest/egs/librispeech/ASR/
+exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c-1_stage1
+exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c-1_stage2
+exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c-1_stage2_10pt/
+exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c-1_no_stage1
+scp -r $exp_dir/epoch-10.pt rhuang@login.clsp.jhu.edu:/export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/$exp_dir/.
+
 # clsp grid initialize
 # ql
 cd /export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR

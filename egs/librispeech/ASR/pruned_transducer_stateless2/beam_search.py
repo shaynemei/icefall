@@ -966,8 +966,8 @@ def modified_beam_search(
     encoder_out = model.joiner.encoder_proj(packed_encoder_out.data)
 
     # import pdb; pdb.set_trace()
-    contexts = model.scratch_space["contexts"]
-    contexts_mask = model.scratch_space["contexts_mask"]
+    contexts = model.scratch_space.get("contexts", None)
+    contexts_mask = model.scratch_space.get("contexts_mask", None)
 
     offset = 0
     finalized_B = []
@@ -999,12 +999,13 @@ def modified_beam_search(
 
         decoder_out = model.decoder(decoder_input, need_pad=False)
 
-        contexts_idx = [sorted_indices[i_hyps] for i_hyps, hyps in enumerate(A) for hyp in hyps]
-        assert len(contexts_idx) == decoder_out.size(0), (len(contexts_idx), decoder_out.size(0))
-        contexts_, contexts_mask_ = contexts[contexts_idx], contexts_mask[contexts_idx]
-
-        decoder_biasing_out, attn = model.decoder_biasing_adapter.forward(decoder_out, contexts_, contexts_mask_)  # need_weights=True
         if not model.no_decoder_biasing:
+            contexts_idx = [sorted_indices[i_hyps] for i_hyps, hyps in enumerate(A) for hyp in hyps]
+            assert len(contexts_idx) == decoder_out.size(0), (len(contexts_idx), decoder_out.size(0))
+            contexts_, contexts_mask_ = contexts[contexts_idx], contexts_mask[contexts_idx]
+
+            decoder_biasing_out, attn = model.decoder_biasing_adapter.forward(decoder_out, contexts_, contexts_mask_)  # need_weights=True
+
             decoder_out = decoder_out + decoder_biasing_out
         decoder_out = decoder_out.unsqueeze(1)
 
@@ -1988,8 +1989,8 @@ def modified_beam_search_LODR(
 
     encoder_out = model.joiner.encoder_proj(packed_encoder_out.data)
 
-    contexts = model.scratch_space["contexts"]
-    contexts_mask = model.scratch_space["contexts_mask"]
+    contexts = model.scratch_space.get("contexts", None)
+    contexts_mask = model.scratch_space.get("contexts_mask", None)
 
     offset = 0
     finalized_B = []
@@ -2021,12 +2022,13 @@ def modified_beam_search_LODR(
 
         decoder_out = model.decoder(decoder_input, need_pad=False)
 
-        contexts_idx = [sorted_indices[i_hyps] for i_hyps, hyps in enumerate(A) for hyp in hyps]
-        assert len(contexts_idx) == decoder_out.size(0), (len(contexts_idx), decoder_out.size(0))
-        contexts_, contexts_mask_ = contexts[contexts_idx], contexts_mask[contexts_idx]
-
-        decoder_biasing_out, attn = model.decoder_biasing_adapter.forward(decoder_out, contexts_, contexts_mask_)  # need_weights=True
         if not model.no_decoder_biasing:
+            contexts_idx = [sorted_indices[i_hyps] for i_hyps, hyps in enumerate(A) for hyp in hyps]
+            assert len(contexts_idx) == decoder_out.size(0), (len(contexts_idx), decoder_out.size(0))
+            contexts_, contexts_mask_ = contexts[contexts_idx], contexts_mask[contexts_idx]
+
+            decoder_biasing_out, attn = model.decoder_biasing_adapter.forward(decoder_out, contexts_, contexts_mask_)  # need_weights=True
+
             decoder_out = decoder_out + decoder_biasing_out
         decoder_out = decoder_out.unsqueeze(1)
 

@@ -522,18 +522,18 @@ def load_checkpoint_if_available(
         "best_valid_loss",
     ]
     # copied from librispeech
-    saved_params_hard_wired = {
-        "best_train_epoch": 28,
-        "best_valid_epoch": 30,
-        "batch_idx_train": 105240,
-        "best_train_loss": 0.15620702543731815,
-        "best_valid_loss": 0.1486564241859933,
-    }
+    # saved_params_hard_wired = {
+    #     "best_train_epoch": 28,
+    #     "best_valid_epoch": 30,
+    #     "batch_idx_train": 105240,
+    #     "best_train_loss": 0.15620702543731815,
+    #     "best_valid_loss": 0.1486564241859933,
+    # }
     for k in keys:
         if k in saved_params:
             params[k] = saved_params[k]
-        elif params.start_epoch == 2:
-            params[k] = saved_params_hard_wired[k]
+        # elif params.start_epoch == 2:
+        #     params[k] = saved_params_hard_wired[k]
         logging.info(f"{k}: {params[k]}")
 
     if params.start_batch > 0:
@@ -990,7 +990,7 @@ def run(rank, world_size, args):
 
     train_cuts = spgispeech.train_cuts()
     # train_cuts.describe()
-    
+
     # Cut statistics:
     # ╒═══════════════════════════╤═════════════╕
     # │ Cuts count:               │ 5886320     │

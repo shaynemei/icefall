@@ -5,7 +5,7 @@
 #$ -j y -o ruizhe_contextual/log/$JOB_NAME-$JOB_ID.out
 #$ -M ruizhe@jhu.edu
 #$ -m e
-#$ -l ram_free=16G,mem_free=16G,gpu=1,hostname=!b*&!c21*
+#$ -l ram_free=16G,mem_free=16G,gpu=1,hostname=!b*&!c18*&!c04*
 #$ -q g.q
 
 # &!octopod*
@@ -49,14 +49,20 @@ exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors
 # exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_wronglower/
 # exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c100_bert_stage1
 # exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c-1_continue4
-exp_dir=
+
+# exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c-1_stage1
+# exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c-1_stage2_10pt/
+exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c-1_stage2
+# exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c-1_no_stage1
+
 
 epochs=17
+epochs=30
 avgs=1
 use_averaged_model=$([ "$avgs" = 1 ] && echo "false" || echo "true")
 
-stage=1
-stop_stage=1
+stage=2
+stop_stage=2
 
 # download model from coe
 # mkdir -p $exp_dir
@@ -79,13 +85,14 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
             --decoding-method $m \
             --context-dir "data/fbai-speech/is21_deep_bias/" \
             --n-distractors $n_distractors \
-            --keep-ratio 1.0 --is-predefined true --no-wfst-lm-biasing false --biased-lm-scale 9 --no-encoder-biasing true --no-decoder-biasing true
+            --keep-ratio 1.0 --no-encoder-biasing true --no-decoder-biasing true
         # --is-full-context true
         # --n-distractors 0
         # --no-encoder-biasing true --no-decoder-biasing true
         # --is-predefined true
         # --is-pretrained-context-encoder true
-        # --no-wfst-lm-biasing false --biased-lm-scale 10
+        # --no-wfst-lm-biasing false --biased-lm-scale 9
+        # --is-predefined true --no-wfst-lm-biasing false --biased-lm-scale 9 --no-encoder-biasing true --no-decoder-biasing true
       done
     done
   done
@@ -157,10 +164,11 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
             --ngram-lm-scale -0.16 \
             --context-dir "data/fbai-speech/is21_deep_bias/" \
             --n-distractors $n_distractors \
-            --keep-ratio 1.0
+            --keep-ratio 1.0 --no-encoder-biasing true --no-decoder-biasing true
         # --is-predefined true
         # --no-encoder-biasing true --no-decoder-biasing true
         # --no-wfst-lm-biasing false --biased-lm-scale 10
+        # all: --is-predefined true --n-distractors 500 --no-wfst-lm-biasing false --biased-lm-scale 11
       done
     done
   done

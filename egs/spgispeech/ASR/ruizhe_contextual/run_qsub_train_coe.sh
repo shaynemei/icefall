@@ -57,6 +57,7 @@ echo "hostname: `hostname`"
 n_distractors=100
 n_distractors=0
 max_duration=700
+max_duration=900
 n_distractors=-1
 # max_duration=700
 # n_distractors=500
@@ -99,4 +100,12 @@ python pruned_transducer_stateless2_context/train.py \
 # Stage1: --n-distractors 0 --is-full-context true
 # --start-batch 
 # --is-pretrained-context-encoder true
+
+
+# Initial run: max_duration=700 is feasible
+# /exp/rhuang/icefall_latest/egs/spgispeech/ASR/ruizhe_contextual/log/log-train-10587871.out
+# /exp/rhuang/icefall_latest/egs/spgispeech/ASR/ruizhe_contextual/log/log-train-10587888.out
+#    - https://tensorboard.dev/experiment/ZglzzMlsRouPL44pGk3AfA/
+
+
 

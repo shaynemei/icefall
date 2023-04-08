@@ -571,19 +571,9 @@ def decode_one_batch(
     else:
         encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
 
-    word_list, word_lengths, num_words_per_utt = \
-        context_collector.get_context_word_list(batch)
-    word_list = word_list.to(device)
-    contexts, contexts_mask = model.context_encoder.embed_contexts(
-        word_list,
-        word_lengths,
-        num_words_per_utt,
-    )
-
     model.scratch_space = dict()
-    model.scratch_space["contexts"] = contexts
-    model.scratch_space["contexts_mask"] = contexts_mask
     model.scratch_space["sp"] = sp
+    model.scratch_space["biased_lm_scale"] = params.biased_lm_scale
 
     if not params.no_wfst_lm_biasing:
         fsa_list, fsa_sizes, num_words_per_utt2 = \
@@ -595,10 +585,20 @@ def decode_one_batch(
             ) for fsa in fsa_list
         ]
         model.scratch_space["biased_lm_list"] = biased_lm_list
-    model.scratch_space["biased_lm_scale"] = params.biased_lm_scale
 
-    encoder_biasing_out, attn = model.encoder_biasing_adapter.forward(encoder_out, contexts, contexts_mask)
     if not model.no_encoder_biasing:
+        word_list, word_lengths, num_words_per_utt = \
+            context_collector.get_context_word_list(batch)
+        word_list = word_list.to(device)
+        contexts, contexts_mask = model.context_encoder.embed_contexts(
+            word_list,
+            word_lengths,
+            num_words_per_utt,
+        )
+        model.scratch_space["contexts"] = contexts
+        model.scratch_space["contexts_mask"] = contexts_mask
+
+        encoder_biasing_out, attn = model.encoder_biasing_adapter.forward(encoder_out, contexts, contexts_mask)
         encoder_out = encoder_out + encoder_biasing_out
 
     hyps = []

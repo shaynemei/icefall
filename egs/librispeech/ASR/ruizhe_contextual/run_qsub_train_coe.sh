@@ -204,5 +204,12 @@ python pruned_transducer_stateless7_context/train.py \
 #      /exp/draj/mini_scale_2022/icefall/egs/librispeech/ASR/pruned_transducer_stateless7_context/exp/log/log-train-10585484.out => stage2 from epoch-10.pt of stage1
 # COE: /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10586081.out => stage2 from epoch-30.pt of stage1
 #
-# Without stage1:
+# Stage2 without stage1:
 # COE: /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10587396.out
+#
+# Results:
+# exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c-1_stage1
+# exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c-1_stage2
+# exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c-1_stage2_10pt/
+# exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c-1_no_stage1
+#
