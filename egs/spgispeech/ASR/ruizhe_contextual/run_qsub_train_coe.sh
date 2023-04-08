@@ -126,5 +126,6 @@ python pruned_transducer_stateless2_context/train.py \
 
 # Stage2:
 # /exp/rhuang/icefall_latest/egs/spgispeech/ASR/ruizhe_contextual/log/log-train-10588562.out
-# 
+# /exp/rhuang/icefall_latest/egs/spgispeech/ASR/ruizhe_contextual/log/log-train-10588574.out
+#    - https://tensorboard.dev/experiment/L4wlmd9NTy2jFw1Sj7KHWg/
 

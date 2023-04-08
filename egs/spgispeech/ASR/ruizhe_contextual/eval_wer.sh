@@ -66,7 +66,7 @@ cp /export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/data/kaldi/ref/ref.
 
 # entity tagging (go to local/ner_spacy.sh and modify the paths there)
 qsub /export/fs04/a12/rhuang/contextualizedASR/local/ner_spacy.sh
-# /export/fs04/a12/rhuang/contextualizedASR/log-ner-3616640.out
+# /export/fs04/a12/rhuang/contextualizedASR/log-ner-3616648.out
 
 wer_dir="/export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/data/kaldi/ref/"
 python local/ner_spacy.py \
@@ -146,10 +146,11 @@ recogs=/export/fs04/a12/rhuang/icefall_align/egs/spgispeech/ASR/tmp/icefall-asr-
 eval_wer $recogs
 
 # modified beam search (baseline)
-# /export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/ruizhe_contextual/log/decode-3616644.out
+# [20230108] /export/fs04/a12/rhuang/icefall_align/egs/spgispeech/ASR/tmp/icefall-asr-spgispeech-pruned-transducer-stateless2/exp20220108/modified_beam_search/log-decode-epoch-30-avg-15-modified_beam_search-beam-size-20-3-ngram-lm-scale-0.01-use-averaged-model-2023-01-09-05-11-29 
+# /export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/ruizhe_contextual/log/decode-3616646.out
 
 # modified beam search + rnnlm + lodr
-# 
+# 3616647
 
 # modified beam search + lm biasing
 # 

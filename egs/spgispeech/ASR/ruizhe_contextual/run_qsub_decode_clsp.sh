@@ -51,8 +51,8 @@ epochs=
 avgs=1
 use_averaged_model=$([ "$avgs" = 1 ] && echo "false" || echo "true")
 
-stage=0
-stop_stage=0
+stage=1
+stop_stage=1
 
 # download model from coe
 # mkdir -p $exp_dir
@@ -68,15 +68,50 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
       --avg 1 \
       --exp-dir "/export/fs04/a12/rhuang/icefall_align/egs/spgispeech/ASR/tmp/icefall-asr-spgispeech-pruned-transducer-stateless2/exp/" \
       --bpe-model "/export/fs04/a12/rhuang/icefall_align/egs/spgispeech/ASR/tmp/icefall-asr-spgispeech-pruned-transducer-stateless2/data/lang_bpe_500/bpe.model" \
-      --max-duration 600 \
+      --max-duration 400 \
       --decoding-method "modified_beam_search" \
       --beam-size 4
 fi
 
-# /export/fs04/a12/rhuang/icefall_align/egs/spgispeech/ASR/tmp/icefall-asr-spgispeech-pruned-transducer-stateless2/exp/modified_beam_search/log-decode-epoch-999-avg-1-modified_beam_search-beam-size-4-2023-04-08-13-31-50
+# [using bad cuts] /export/fs04/a12/rhuang/icefall_align/egs/spgispeech/ASR/tmp/icefall-asr-spgispeech-pruned-transducer-stateless2/exp/modified_beam_search/log-decode-epoch-999-avg-1-modified_beam_search-beam-size-4-2023-04-08-13-31-50
+# /export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/ruizhe_contextual/log/decode-3616644.out
+
+# No biasing at all + RNNLM + LODR
+if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
+  icefall_align_path="/export/fs04/a12/rhuang/icefall_align/egs/spgispeech/ASR/"
+  # rnnlm_dir="/export/fs04/a12/rhuang/icefall_align/egs/spgispeech/LM/my-rnnlm-exp/"
+  rnnlm_dir="/export/fs04/a12/rhuang/contextualizedASR/lm/LM/my-rnnlm-exp-1024-3-tied"
+  lm_type=rnn
+  lang_dir="/export/fs04/a12/rhuang/contextualizedASR/lm/LM/my-ngram-exp/bpe"
+  rnn_lm_scale=0.4
+  ngram_lm_scale=-0.16
+  tokens_ngram_order=2
+  python pruned_transducer_stateless2/decode.py \
+      --epoch 999 \
+      --avg 1 \
+      --exp-dir "/export/fs04/a12/rhuang/icefall_align/egs/spgispeech/ASR/tmp/icefall-asr-spgispeech-pruned-transducer-stateless2/exp/" \
+      --bpe-model "/export/fs04/a12/rhuang/icefall_align/egs/spgispeech/ASR/tmp/icefall-asr-spgispeech-pruned-transducer-stateless2/data/lang_bpe_500/bpe.model" \
+      --max-duration 300 \
+      --lang-dir $lang_dir \
+      --decoding-method modified_beam_search_LODR \
+      --beam 4 \
+      --max-contexts 4 \
+      --use-shallow-fusion true \
+      --lm-type $lm_type \
+      --lm-exp-dir $rnnlm_dir \
+      --lm-epoch 7 \
+      --lm-avg 5 \
+      --lm-scale $rnn_lm_scale \
+      --rnn-lm-embedding-dim 1024 \
+      --rnn-lm-hidden-dim 1024 \
+      --rnn-lm-num-layers 3 \
+      --rnn-lm-tie-weights true \
+      --tokens-ngram $tokens_ngram_order \
+      --ngram-lm-scale $ngram_lm_scale
+fi
 
 # Use biasing
-if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
+if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   # greedy_search fast_beam_search
   for m in modified_beam_search ; do
     for epoch in $epochs; do
@@ -133,7 +168,7 @@ fi
 # LODR
 ####################################
 
-if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
+if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
   # path_to_pretrained_asr_model="/export/fs04/a12/rhuang/deep_smoothing/data_librispeech/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/"
   # ln -s $path_to_pretrained_asr_model/exp/pretrained.pt $path_to_pretrained_asr_model/exp/epoch-999.pt
 

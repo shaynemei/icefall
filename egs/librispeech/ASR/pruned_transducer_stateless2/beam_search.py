@@ -1940,7 +1940,9 @@ def modified_beam_search_LODR(
     assert LM is not None
     lm_scale = LM.lm_scale
 
-    biased_lm_scale = model.scratch_space["biased_lm_scale"]
+    biased_lm_scale = model.scratch_space["biased_lm_scale"] \
+      if model.scratch_space is not None and "biased_lm_scale" in model.scratch_space \
+        else 0
 
     packed_encoder_out = torch.nn.utils.rnn.pack_padded_sequence(
         input=encoder_out,
