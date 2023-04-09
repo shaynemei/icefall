@@ -125,7 +125,7 @@ fi
 # 3616665 0.4-0.0:  11.66/8.04
 # 3616666 0.2-0.0:  10.76/7.02
 # 3616667 0.3-0.0:  11.08/7.41
-# 3616770 0.1-0.0:  
+# 3616829 0.1-0.0:  
 
 # Use biasing
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
@@ -138,12 +138,12 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
             --avg $avg \
             --exp-dir $exp_dir \
             --bpe-model "/export/fs04/a12/rhuang/icefall_align/egs/spgispeech/ASR/tmp/icefall-asr-spgispeech-pruned-transducer-stateless2/data/lang_bpe_500/bpe.model" \
-            --max-duration 600 \
+            --max-duration 400 \
             --decoding-method $m \
             --beam-size 4 \
             --context-dir "data/rare_words" \
             --n-distractors $n_distractors \
-            --keep-ratio 1.0 --no-encoder-biasing true --no-decoder-biasing true --no-wfst-lm-biasing false --biased-lm-scale 9 --slides "/export/fs04/a12/rhuang/contextualizedASR/data/ec53_kaldi_heuristics2/context${context_suffix}" --is-predefined true
+            --keep-ratio 1.0 --no-encoder-biasing true --no-decoder-biasing true --no-wfst-lm-biasing false --biased-lm-scale 6 --slides "/export/fs04/a12/rhuang/contextualizedASR/data/ec53_kaldi_heuristics2/context${context_suffix}" --is-predefined true
         # --context-dir "data/rare_words"
         # --slides "/export/fs04/a12/rhuang/contextualizedASR/data/ec53_kaldi_heuristics2/context${context_suffix}" --is-predefined true
         # --is-full-context true
@@ -200,15 +200,21 @@ fi
 # 8 3616784 9.08/5.33
 # ----------------
 # slides (removed common words, cuts800)
-# 0 
-# 3 3616788
-# 4 3616789
-# 5 3616790
-# 6 3616791
-# 7 3616792
-# 8 3616793
-# 9 3616795 
-# 0 3616794
+# 0 3616794 10.22/6.5
+# 3 3616788 10.13/6.46
+# 4 3616789 10.13/6.45
+# 5 3616790 10.15/6.46
+# 6 3616791 10.14/6.47
+# 7 3616792 10.22/6.51
+# 8 3616793 10.21/6.52
+# 9 3616795 10.28/6.62
+# ----------------
+# slides (removed common words, cuts_all)
+# 3 3616830
+# 4 3616831
+# 5 3616832
+# 6 3616833
+
 
 ####################################
 # LODR
