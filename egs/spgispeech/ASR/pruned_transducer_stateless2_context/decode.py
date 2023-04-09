@@ -769,6 +769,13 @@ def main():
             params.suffix += (
                 f"-LODR-{params.tokens_ngram}gram-scale-{params.ngram_lm_scale}"
             )
+    
+    if not params.no_wfst_lm_biasing:
+        params.suffix += f"-wfst-biasing-{params.biased_lm_scale}"
+    if not params.no_encoder_biasing:
+        params.suffix += f"-encoder-biasing"
+    if not params.no_decoder_biasing:
+        params.suffix += f"-decoder-biasing"
 
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
     logging.info("Decoding started")
@@ -910,7 +917,7 @@ def main():
     ec53_cuts = CutSet.from_file(ec53_cuts_file)
     # from lhotse.utils import fix_random_seed
     # fix_random_seed(12355)
-    # ec53_cuts = ec53_cuts.sample(n_cuts=800)
+    # ec53_cuts = ec53_cuts.sample(n_cuts=100)
     ec53_cuts.describe()
 
     dev_dl = spgispeech.test_dataloaders(dev_cuts)

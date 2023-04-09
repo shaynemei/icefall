@@ -133,5 +133,6 @@ python pruned_transducer_stateless2_context/train.py \
 # Stage2 (common words 3k):
 # /exp/rhuang/icefall_latest/egs/spgispeech/ASR/ruizhe_contextual/log/log-train-10588947.out
 #    - https://tensorboard.dev/experiment/f4U3S1lYR0KaAFeEP2xOrg/
+# ls pruned_transducer_stateless2_context/exp/exp_libri_full_c-1_stage2
 
 # Stage3 (common words 3k + keep_ratio = 0.3~0.8):

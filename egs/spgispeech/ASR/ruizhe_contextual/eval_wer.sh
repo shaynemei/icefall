@@ -198,18 +198,33 @@ mamba activate whisper
 export PYTHONPATH=/export/fs04/a12/rhuang/contextualizedASR/:$PYTHONPATH
 
 recogs=/export/fs04/a12/rhuang/icefall_align/egs/spgispeech/ASR/tmp/icefall-asr-spgispeech-pruned-transducer-stateless2/exp/modified_beam_search/recogs-ec53-epoch-999-avg-1-modified_beam_search-beam-size-4.txt
-recogs=/export/fs04/a12/rhuang/icefall_align/egs/spgispeech/ASR/tmp/icefall-asr-spgispeech-pruned-transducer-stateless2/exp/modified_beam_search_LODR/recogs-ec53-epoch-999-avg-1-modified_beam_search_LODR-beam-size-4-rnnlm-lm-scale-0.4-LODR-2gram-scale--0.16.txt
+recogs=/export/fs04/a12/rhuang/icefall_align/egs/spgispeech/ASR/tmp/icefall-asr-spgispeech-pruned-transducer-stateless2/exp/modified_beam_search_LODR/recogs-ec53-epoch-999-avg-1-modified_beam_search_LODR-beam-size-4-rnnlm-lm-scale-0.2-LODR-2gram-scale--0.1.txt
+recogs=pruned_transducer_stateless2_context/exp/exp_libri_full_c-1_stage2_6k/modified_beam_search/recogs-ec53-epoch-99-avg-1-modified_beam_search-beam-size-4.txt
 eval_wer $recogs
 
 # modified beam search (baseline)
 # [20230108] /export/fs04/a12/rhuang/icefall_align/egs/spgispeech/ASR/tmp/icefall-asr-spgispeech-pruned-transducer-stateless2/exp20220108/modified_beam_search/log-decode-epoch-30-avg-15-modified_beam_search-beam-size-20-3-ngram-lm-scale-0.01-use-averaged-model-2023-01-09-05-11-29 
-# beam_size=4:  /export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/ruizhe_contextual/log/decode-3616646.out
+# *beam_size=4:  /export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/ruizhe_contextual/log/decode-3616646.out
 # beam_size=20: /export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/ruizhe_contextual/log/decode-3616651.out
+# 10.70_48705     9.74_40326      66.53_2276      60.61_257       36.32_1328      15.17_310
+
+# modified beam search + rnnlm only
+# 0.1-0.0:  /export/fs04/a12/rhuang/icefall_align/egs/spgispeech/ASR/tmp/icefall-asr-spgispeech-pruned-transducer-stateless2/exp/modified_beam_search_LODR/recogs-ec53-epoch-999-avg-1-modified_beam_search_LODR-beam-size-4-rnnlm-lm-scale-0.1-LODR-2gram-scale--0.0.txt
+# 10.56_48096     9.59_39716      66.18_2264      60.61_257       35.80_1309      14.78_302
 
 # modified beam search + rnnlm + lodr
 # [20230108] /export/fs04/a12/rhuang/icefall_align/egs/spgispeech/ASR/tmp/icefall-asr-spgispeech-pruned-transducer-stateless2/exp20220108/modified_beam_search_rnnlm_LODR/log-decode-epoch-30-avg-15-modified_beam_search_rnnlm_LODR-beam-size-4-2-ngram-lm-scale--0.05-rnnlm-lm-scale-0.2-LODR-use-averaged-model-2023-01-09-17-15-46
-# /export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/ruizhe_contextual/log/decode-3616647.out
+# 0.4-0.16: /export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/ruizhe_contextual/log/decode-3616647.out
+# *0.2-0.1:  /export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/ruizhe_contextual/log/decode-3616664.out 
+# 10.44_47519     9.49_39277      65.07_2226      59.91_254       34.71_1269      14.68_300
 
 # modified beam search + lm biasing
-# 
+# 'biased_lm_scale': 4.0
+# /export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/ruizhe_contextual/log/decode-3616831.out
+# 10.63_48410     9.70_40179      64.86_2219      58.73_249       34.08_1246      14.59_298
+
+# modified beam search + lm biasing + rnnlm + lodr
+# rnn 0.2-0.1, biased_lm_scale 6.0
+# /export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/ruizhe_contextual/log/decode-3616835.out
+# 10.41_47400     9.50_39320      63.46_2171      56.60_240       32.19_1177      14.19_290 
 

@@ -720,7 +720,9 @@ def main():
     ec53_cuts_file = "/export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/data/manifests/cuts_ec53_norm.jsonl.gz"
     logging.info(f"Loading cuts from: {ec53_cuts_file}")
     ec53_cuts = CutSet.from_file(ec53_cuts_file)
-    # ec53_cuts = ec53_cuts.sample(n_cuts=10)
+    # from lhotse.utils import fix_random_seed
+    # fix_random_seed(12355)
+    # ec53_cuts = ec53_cuts.sample(n_cuts=100)
     ec53_cuts.describe()
 
     dev_dl = spgispeech.test_dataloaders(dev_cuts)

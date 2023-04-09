@@ -968,7 +968,11 @@ def main():
                 f"-LODR-{params.tokens_ngram}gram-scale-{params.ngram_lm_scale}"
             )
     if not params.no_wfst_lm_biasing:
-        params.suffix += f"-biased-scale-{params.biased_lm_scale}"
+        params.suffix += f"-wfst-biasing-{params.biased_lm_scale}"
+    if not params.no_encoder_biasing:
+        params.suffix += f"-encoder-biasing"
+    if not params.no_decoder_biasing:
+        params.suffix += f"-decoder-biasing"
 
     if params.use_averaged_model:
         params.suffix += "-use-averaged-model"
