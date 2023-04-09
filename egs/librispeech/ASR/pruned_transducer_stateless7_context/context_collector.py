@@ -223,6 +223,7 @@ class ContextCollector(torch.utils.data.Dataset):
             elif uid in self.test_other_biasing_list:
                 rare_words_list.append(self.test_other_biasing_list[uid])
             else:
+                rare_words_list.append([])
                 logging.error(f"uid={uid} cannot find the predefined biasing list of size {self.n_distractors}")
         # for wl in rare_words_list:
         #     for w in wl:

@@ -124,8 +124,13 @@ python pruned_transducer_stateless2_context/train.py \
 #    - https://tensorboard.dev/experiment/uM39UVDdTXyUvJvSwjF9rw/
 # /exp/rhuang/icefall_latest/egs/spgispeech/ASR/ruizhe_contextual/log/log-train-10588318.out <= max_duration=900
 
-# Stage2:
+# Stage2 (common words 6k):
 # /exp/rhuang/icefall_latest/egs/spgispeech/ASR/ruizhe_contextual/log/log-train-10588562.out
 # /exp/rhuang/icefall_latest/egs/spgispeech/ASR/ruizhe_contextual/log/log-train-10588574.out
 #    - https://tensorboard.dev/experiment/L4wlmd9NTy2jFw1Sj7KHWg/
+# mv pruned_transducer_stateless2_context/exp/exp_libri_full_c-1_stage2 pruned_transducer_stateless2_context/exp/exp_libri_full_c-1_stage2_6k
 
+# Stage2 (common words 3k):
+# /exp/rhuang/icefall_latest/egs/spgispeech/ASR/ruizhe_contextual/log/log-train-10588947.out
+
+# Stage3 (common words 3k + keep_ratio = 0.3~0.8):

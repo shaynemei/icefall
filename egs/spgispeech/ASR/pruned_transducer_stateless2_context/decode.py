@@ -73,16 +73,26 @@ from beam_search import (
     greedy_search,
     greedy_search_batch,
     modified_beam_search,
+    modified_beam_search_LODR,
 )
 from train import get_params, get_transducer_model
+from egs.spgispeech.ASR.pruned_transducer_stateless2_context.context_collector import ContextCollector
+from egs.spgispeech.ASR.pruned_transducer_stateless2_context.context_encoder import ContextEncoder
+from egs.spgispeech.ASR.pruned_transducer_stateless2_context.context_encoder_lstm import ContextEncoderLSTM
+from egs.spgispeech.ASR.pruned_transducer_stateless2_context.context_encoder_pretrained import ContextEncoderPretrained
+from egs.spgispeech.ASR.pruned_transducer_stateless2_context.bert_encoder import BertEncoder
 
+from icefall import LmScorer, NgramLm, BiasedNgramLm
 from icefall.checkpoint import average_checkpoints, find_checkpoints, load_checkpoint
 from icefall.utils import (
     AttributeDict,
     setup_logger,
     store_transcripts,
+    str2bool,
     write_error_stats,
 )
+from icefall.lexicon import Lexicon
+from lhotse import CutSet
 
 
 def get_parser():
@@ -133,6 +143,13 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--lang-dir",
+        type=Path,
+        default="data/lang_bpe_500",
+        help="The lang dir containing word table and LG graph",
+    )
+
+    parser.add_argument(
         "--decoding-method",
         type=str,
         default="greedy_search",
@@ -141,6 +158,7 @@ def get_parser():
           - beam_search
           - modified_beam_search
           - fast_beam_search
+          - modified_beam_search_LODR
         """,
     )
 
@@ -161,6 +179,16 @@ def get_parser():
         search (i.e., `cutoff = max-score - beam`), which is the same as the
         `beam` in Kaldi.
         Used only when --decoding-method is fast_beam_search""",
+    )
+
+    parser.add_argument(
+        "--ngram-lm-scale",
+        type=float,
+        default=0.01,
+        help="""
+        Used only when --decoding_method is fast_beam_search_nbest_LG.
+        It specifies the scale for n-gram LM scores.
+        """,
     )
 
     parser.add_argument(
@@ -193,15 +221,186 @@ def get_parser():
         Used only when --decoding_method is greedy_search""",
     )
 
+    parser.add_argument(
+        "--num-paths",
+        type=int,
+        default=200,
+        help="""Number of paths for nbest decoding.
+        Used only when the decoding method is fast_beam_search_nbest,
+        fast_beam_search_nbest_LG, and fast_beam_search_nbest_oracle""",
+    )
+
+    parser.add_argument(
+        "--nbest-scale",
+        type=float,
+        default=0.5,
+        help="""Scale applied to lattice scores when computing nbest paths.
+        Used only when the decoding method is fast_beam_search_nbest,
+        fast_beam_search_nbest_LG, and fast_beam_search_nbest_oracle""",
+    )
+
+    parser.add_argument(
+        "--simulate-streaming",
+        type=str2bool,
+        default=False,
+        help="""Whether to simulate streaming in decoding, this is a good way to
+        test a streaming model.
+        """,
+    )
+
+    parser.add_argument(
+        "--decode-chunk-size",
+        type=int,
+        default=16,
+        help="The chunk size for decoding (in frames after subsampling)",
+    )
+
+    parser.add_argument(
+        "--left-context",
+        type=int,
+        default=64,
+        help="left context can be seen during decoding (in frames after subsampling)",
+    )
+
+    parser.add_argument(
+        "--use-shallow-fusion",
+        type=str2bool,
+        default=False,
+        help="""Use neural network LM for shallow fusion.
+        If you want to use LODR, you will also need to set this to true
+        """,
+    )
+
+    parser.add_argument(
+        "--lm-type",
+        type=str,
+        default="rnn",
+        help="Type of NN lm",
+        choices=["rnn", "transformer"],
+    )
+
+    parser.add_argument(
+        "--lm-scale",
+        type=float,
+        default=0.3,
+        help="""The scale of the neural network LM
+        Used only when `--use-shallow-fusion` is set to True.
+        """,
+    )
+
+    parser.add_argument(
+        "--tokens-ngram",
+        type=int,
+        default=3,
+        help="""Token Ngram used for rescoring.
+            Used only when the decoding method is
+            modified_beam_search_ngram_rescoring, or LODR
+            """,
+    )
+
+    parser.add_argument(
+        "--backoff-id",
+        type=int,
+        default=500,
+        help="""ID of the backoff symbol.
+                Used only when the decoding method is
+                modified_beam_search_ngram_rescoring""",
+    )
+
+    parser.add_argument(
+        "--context-dir",
+        type=str,
+        default="data/rare_words/",
+        help="",
+    )
+
+    parser.add_argument(
+        "--slides",
+        type=str,
+        default="/export/fs04/a12/rhuang/contextualizedASR/data/ec53_kaldi_heuristics2/context/",
+        help="",
+    )
+
+    parser.add_argument(
+        "--n-distractors",
+        type=int,
+        default=100,
+        help="",
+    )
+
+    parser.add_argument(
+        "--keep-ratio",
+        type=float,
+        default=1.0,
+        help="",
+    )
+
+    parser.add_argument(
+        "--no-encoder-biasing",
+        type=str2bool,
+        default=False,
+        help=""".
+        """,
+    )
+
+    parser.add_argument(
+        "--no-decoder-biasing",
+        type=str2bool,
+        default=False,
+        help=""".
+        """,
+    )
+
+    parser.add_argument(
+        "--no-wfst-lm-biasing",
+        type=str2bool,
+        default=True,
+        help=""".
+        """,
+    )
+
+    parser.add_argument(
+        "--is-full-context",
+        type=str2bool,
+        default=False,
+        help="",
+    )
+
+    parser.add_argument(
+        "--is-predefined",
+        type=str2bool,
+        default=False,
+        help="",
+    )
+
+    parser.add_argument(
+        "--is-pretrained-context-encoder",
+        type=str2bool,
+        default=False,
+        help="",
+    )
+
+    parser.add_argument(
+        "--biased-lm-scale",
+        type=float,
+        default=0.0,
+        help="",
+    )
+
     return parser
 
 
 def decode_one_batch(
     params: AttributeDict,
     model: nn.Module,
+    context_collector: ContextCollector,
     sp: spm.SentencePieceProcessor,
     batch: dict,
+    word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
+    ngram_lm: Optional[NgramLm] = None,
+    ngram_lm_scale: float = 1.0,
+    LM: Optional[LmScorer] = None,
 ) -> Dict[str, List[List[str]]]:
     """Decode one batch and return the result in a dict. The dict has the
     following format:
@@ -242,6 +441,37 @@ def decode_one_batch(
     feature_lens = supervisions["num_frames"].to(device)
 
     encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
+    
+    model.scratch_space = dict()
+    model.scratch_space["sp"] = sp
+    model.scratch_space["biased_lm_scale"] = params.biased_lm_scale
+
+    if not params.no_wfst_lm_biasing:
+        fsa_list, fsa_sizes, num_words_per_utt2 = \
+            context_collector.get_context_word_wfst(batch)
+        biased_lm_list = [
+            BiasedNgramLm(
+                fst=fsa, 
+                backoff_id=context_collector.backoff_id
+            ) for fsa in fsa_list
+        ]
+        model.scratch_space["biased_lm_list"] = biased_lm_list
+
+    if not model.no_encoder_biasing:
+        word_list, word_lengths, num_words_per_utt = \
+            context_collector.get_context_word_list(batch)
+        word_list = word_list.to(device)
+        contexts, contexts_mask = model.context_encoder.embed_contexts(
+            word_list,
+            word_lengths,
+            num_words_per_utt,
+        )
+        model.scratch_space["contexts"] = contexts
+        model.scratch_space["contexts_mask"] = contexts_mask
+
+        encoder_biasing_out, attn = model.encoder_biasing_adapter.forward(encoder_out, contexts, contexts_mask)
+        encoder_out = encoder_out + encoder_biasing_out
+    
     hyps = []
 
     if params.decoding_method == "fast_beam_search":
@@ -270,6 +500,18 @@ def decode_one_batch(
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
+        )
+        for hyp in sp.decode(hyp_tokens):
+            hyps.append(hyp.split())
+    elif params.decoding_method == "modified_beam_search_LODR":
+        hyp_tokens = modified_beam_search_LODR(
+            model=model,
+            encoder_out=encoder_out,
+            encoder_out_lens=encoder_out_lens,
+            beam=params.beam_size,
+            LODR_lm=ngram_lm,
+            LODR_lm_scale=ngram_lm_scale,
+            LM=LM,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
@@ -316,8 +558,13 @@ def decode_dataset(
     dl: torch.utils.data.DataLoader,
     params: AttributeDict,
     model: nn.Module,
+    context_collector: ContextCollector,
     sp: spm.SentencePieceProcessor,
+    word_table: Optional[k2.SymbolTable] = None,
     decoding_graph: Optional[k2.Fsa] = None,
+    ngram_lm: Optional[NgramLm] = None,
+    ngram_lm_scale: float = 1.0,
+    LM: Optional[LmScorer] = None,
 ) -> Dict[str, List[Tuple[str, List[str], List[str]]]]:
     """Decode dataset.
 
@@ -350,7 +597,7 @@ def decode_dataset(
     if params.decoding_method == "greedy_search":
         log_interval = 100
     else:
-        log_interval = 2
+        log_interval = 20
 
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
@@ -360,9 +607,14 @@ def decode_dataset(
         hyps_dict = decode_one_batch(
             params=params,
             model=model,
+            context_collector=context_collector,
             sp=sp,
             decoding_graph=decoding_graph,
+            word_table=word_table,
             batch=batch,
+            ngram_lm=ngram_lm,
+            ngram_lm_scale=ngram_lm_scale,
+            LM=LM,
         )
 
         for name, hyps in hyps_dict.items():
@@ -436,11 +688,47 @@ def save_results(
         note = ""
     logging.info(s)
 
+def rare_word_score(
+    params: AttributeDict,
+    test_set_name: str,
+    results_dict: Dict[str, List[Tuple[str, List[str], List[str]]]],
+    cuts,
+):
+    from collections import namedtuple
+    from score import main as score_main
+    from lhotse import CutSet
+
+    logging.info(f"test_set_name: {test_set_name}")
+    cuts = cuts[0]
+    cuts = [c for c in cuts]
+    cuts = CutSet.from_cuts(cuts)
+
+    args = namedtuple('A', ['refs', 'hyps', 'lenient'])
+    if params.n_distractors > 0:
+        args.refs = params.context_dir / f"ref/{test_set_name}.biasing_{params.n_distractors}.tsv"
+    else:
+        args.refs = params.context_dir / f"ref/{test_set_name}.biasing_100.tsv"
+    args.lenient = True
+
+    for key, results in results_dict.items():
+        print()
+        logging.info(f"{key}")
+        args.hyps = dict()
+
+        for cut_id, ref, hyp in results:
+            u_id = cuts[cut_id].supervisions[0].id
+            hyp = " ".join(hyp)
+            hyp = hyp.lower()
+            args.hyps[u_id] = hyp
+        
+        score_main(args)
+        print()
 
 @torch.no_grad()
 def main():
     parser = get_parser()
     SPGISpeechAsrDataModule.add_arguments(parser)
+    LmScorer.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -452,6 +740,7 @@ def main():
         "beam_search",
         "fast_beam_search",
         "modified_beam_search",
+        "modified_beam_search_LODR",
     )
     params.res_dir = params.exp_dir / params.decoding_method
 
@@ -469,6 +758,17 @@ def main():
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
+    
+    if params.use_shallow_fusion:
+        if params.lm_type == "rnn":
+            params.suffix += f"-rnnlm-lm-scale-{params.lm_scale}"
+        elif params.lm_type == "transformer":
+            params.suffix += f"-transformer-lm-scale-{params.lm_scale}"
+
+        if "LODR" in params.decoding_method:
+            params.suffix += (
+                f"-LODR-{params.tokens_ngram}gram-scale-{params.ngram_lm_scale}"
+            )
 
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
     logging.info("Decoding started")
@@ -484,12 +784,47 @@ def main():
 
     # <blk> is defined in local/train_bpe_model.py
     params.blank_id = sp.piece_to_id("<blk>")
+    params.unk_id = sp.piece_to_id("<unk>")
     params.vocab_size = sp.get_piece_size()
 
     logging.info(params)
 
+    logging.info("About to load context collector")
+    params.context_dir = Path(params.context_dir)
+    if params.is_pretrained_context_encoder:
+        # Use pretrained encoder, e.g., BERT
+        bert_encoder = BertEncoder(device=device)
+        context_collector = ContextCollector(
+            path_rare_words=params.context_dir,
+            slides=params.slides,
+            sp=None,
+            bert_encoder=bert_encoder,
+            is_predefined=params.is_predefined,
+            n_distractors=params.n_distractors,
+            keep_ratio=params.keep_ratio,
+            is_full_context=params.is_full_context,
+            backoff_id=params.backoff_id,
+        )
+        # bert_encoder.free_up()
+    else:
+        context_collector = ContextCollector(
+            path_rare_words=params.context_dir,
+            slides=params.slides,
+            sp=sp,
+            bert_encoder=None,
+            is_predefined=params.is_predefined,
+            n_distractors=params.n_distractors,
+            keep_ratio=params.keep_ratio,
+            is_full_context=params.is_full_context,
+            backoff_id=params.backoff_id,
+        )
+
     logging.info("About to create model")
     model = get_transducer_model(params)
+
+    model.no_encoder_biasing = params.no_encoder_biasing
+    model.no_decoder_biasing = params.no_decoder_biasing
+    model.no_wfst_lm_biasing = params.no_wfst_lm_biasing
 
     if params.iter > 0:
         filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
@@ -523,34 +858,82 @@ def main():
     model.eval()
     model.device = device
 
+    # only load N-gram LM when needed
+    if "ngram" in params.decoding_method or "LODR" in params.decoding_method:
+        lm_filename = f"{params.tokens_ngram}gram.fst.txt"
+        logging.info(f"lm filename: {lm_filename}")
+        ngram_lm = NgramLm(
+            str(params.lang_dir / lm_filename),
+            backoff_id=params.backoff_id,
+            is_binary=False,
+        )
+        logging.info(f"num states: {ngram_lm.lm.num_states}")
+        ngram_lm_scale = params.ngram_lm_scale
+    else:
+        ngram_lm = None
+        ngram_lm_scale = None
+
+    # only load the neural network LM if doing shallow fusion
+    if params.use_shallow_fusion:
+        LM = LmScorer(
+            lm_type=params.lm_type,
+            params=params,
+            device=device,
+            lm_scale=params.lm_scale,
+        )
+        LM.to(device)
+        LM.eval()
+
+    else:
+        LM = None
+
     if params.decoding_method == "fast_beam_search":
         decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
+        word_table = None
     else:
         decoding_graph = None
+        word_table = None
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
 
     # we need cut ids to display recognition results.
     args.return_cuts = True
+    args.on_the_fly_feats = True
     spgispeech = SPGISpeechAsrDataModule(args)
 
     dev_cuts = spgispeech.dev_cuts()
     val_cuts = spgispeech.val_cuts()
 
+    ec53_cuts_file = "/export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/data/manifests/cuts_ec53_norm.jsonl.gz"
+    logging.info(f"Loading cuts from: {ec53_cuts_file}")
+    ec53_cuts = CutSet.from_file(ec53_cuts_file)
+    from lhotse.utils import fix_random_seed
+    fix_random_seed(12355)
+    ec53_cuts = ec53_cuts.sample(n_cuts=800)
+    ec53_cuts.describe()
+
     dev_dl = spgispeech.test_dataloaders(dev_cuts)
     val_dl = spgispeech.test_dataloaders(val_cuts)
+    ec53_dl = spgispeech.test_dataloaders(ec53_cuts)
 
-    test_sets = ["dev", "val"]
-    test_dl = [dev_dl, val_dl]
+    # test_sets = ["dev", "val"]
+    # test_dl = [dev_dl, val_dl]
+    test_sets = ["ec53"]
+    test_dl = [ec53_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
         results_dict = decode_dataset(
             dl=test_dl,
             params=params,
             model=model,
+            context_collector=context_collector,
             sp=sp,
+            word_table=word_table,
             decoding_graph=decoding_graph,
+            ngram_lm=ngram_lm,
+            ngram_lm_scale=ngram_lm_scale,
+            LM=LM,
         )
 
         save_results(
@@ -558,6 +941,14 @@ def main():
             test_set_name=test_set,
             results_dict=results_dict,
         )
+
+        # rare_word_score(
+        #     params=params,
+        #     test_set_name=test_set,
+        #     results_dict=results_dict,
+        #     cuts=test_dl.sampler.cuts,
+        # )
+
 
     logging.info("Done!")
 

@@ -66,7 +66,7 @@ cp /export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/data/kaldi/ref/ref.
 
 # entity tagging (go to local/ner_spacy.sh and modify the paths there)
 qsub /export/fs04/a12/rhuang/contextualizedASR/local/ner_spacy.sh
-# /export/fs04/a12/rhuang/contextualizedASR/log-ner-3616648.out
+# /export/fs04/a12/rhuang/contextualizedASR/log-ner-3616650.out
 
 wer_dir="/export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/data/kaldi/ref/"
 python local/ner_spacy.py \
@@ -79,6 +79,61 @@ python local/ner_spacy.py \
 # prepare context/biasing list
 ####################################
 
+# Refer to: /export/fs04/a12/rhuang/contextualizedASR/lm/ngram.sh
+
+### get real contexts from slides
+
+mamba activate whisper
+export PYTHONPATH=/export/fs04/a12/rhuang/icefall/:$PYTHONPATH
+export PYTHONPATH=/export/fs04/a12/rhuang/icefall_align/egs/spgispeech/ASR/:$PYTHONPATH
+export PYTHONPATH=/export/fs04/a12/rhuang/contextualizedASR/:$PYTHONPATH
+
+# python /export/fs04/a12/rhuang/contextualizedASR/local/pdf/pdf2context.py \
+#   --pdf "/export/fs04/a12/rhuang/contextualizedASR/data/ec53_json/BAYZF_2018_Q4_20190227_1.pdf"
+
+# python /export/fs04/a12/rhuang/contextualizedASR/local/pdf/pdf2context.py \
+#   --pdf "/export/fs04/a12/rhuang/contextualizedASR/data/ec53_json/BAYZF_2018_Q4_20190227_original.pdf" |\
+#   awk '{print $0, 1.0}' \
+#   > /export/fs04/a12/rhuang/contextualizedASR/lm/LM/my-ngram-exp/entities.weighted.real.txt
+
+output_dir="/export/fs04/a12/rhuang/contextualizedASR/data/ec53_kaldi_heuristics2/context"
+mkdir -p ${output_dir}
+data_dir="/export/fs04/a12/rhuang/contextualizedASR/data/ec53_json/"
+for f in ${data_dir}/*.mp3; do
+    fbase=$(basename $f)
+    fbase=${fbase%.mp3}  # remove suffix
+    echo "`date` Processing: $f ($fbase)"
+
+    python /export/fs04/a12/rhuang/contextualizedASR/local/pdf/pdf2context.py \
+      --pdf "${data_dir}/${fbase}"'*.pdf' |\
+      awk '{print $0, 1.0}' \
+      > ${output_dir}/${fbase}.txt
+done
+ls -1 ${output_dir}/*.txt | wc -l
+wc ${output_dir}/*.txt
+
+
+### get oracle entity context
+
+decode="/export/fs04/a12/rhuang/icefall_align/egs/spgispeech/ASR/tmp/icefall-asr-spgispeech-pruned-transducer-stateless2/exp20220103_2/modified_beam_search_rnnlm_shallow_fusion_biased/wer"
+ref_ner=$decode/ref.ner
+per_utt=$decode/scoring_kaldi/wer_details/per_utt
+
+distractor_ratio=0.0
+outdir="/export/fs04/a12/rhuang/contextualizedASR/data/ec53_kaldi_heuristics2/context_${distractor_ratio}/"
+mkdir -p $outdir
+python /export/fs04/a12/rhuang/contextualizedASR/local/collect_entities_oracle.py \
+  --ref_ner $ref_ner \
+  --per_utt $per_utt \
+  --distractor_ratio $distractor_ratio \
+  --real_contexts "/export/fs04/a12/rhuang/contextualizedASR/data/ec53_kaldi_heuristics2/context/" \
+  --out $outdir
+
+wc /export/fs04/a12/rhuang/contextualizedASR/data/ec53_kaldi_heuristics2/context/*.txt
+wc $outdir/*.txt
+
+# count OOVs
+comm -23 <(sort $output_dir/entities.1g.txt) <(sort $output_dir/vocab.txt) | wc -lah
 
 
 ####################################
@@ -143,14 +198,17 @@ mamba activate whisper
 export PYTHONPATH=/export/fs04/a12/rhuang/contextualizedASR/:$PYTHONPATH
 
 recogs=/export/fs04/a12/rhuang/icefall_align/egs/spgispeech/ASR/tmp/icefall-asr-spgispeech-pruned-transducer-stateless2/exp/modified_beam_search/recogs-ec53-epoch-999-avg-1-modified_beam_search-beam-size-4.txt
+recogs=/export/fs04/a12/rhuang/icefall_align/egs/spgispeech/ASR/tmp/icefall-asr-spgispeech-pruned-transducer-stateless2/exp/modified_beam_search_LODR/recogs-ec53-epoch-999-avg-1-modified_beam_search_LODR-beam-size-4-rnnlm-lm-scale-0.4-LODR-2gram-scale--0.16.txt
 eval_wer $recogs
 
 # modified beam search (baseline)
 # [20230108] /export/fs04/a12/rhuang/icefall_align/egs/spgispeech/ASR/tmp/icefall-asr-spgispeech-pruned-transducer-stateless2/exp20220108/modified_beam_search/log-decode-epoch-30-avg-15-modified_beam_search-beam-size-20-3-ngram-lm-scale-0.01-use-averaged-model-2023-01-09-05-11-29 
-# /export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/ruizhe_contextual/log/decode-3616646.out
+# beam_size=4:  /export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/ruizhe_contextual/log/decode-3616646.out
+# beam_size=20: /export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/ruizhe_contextual/log/decode-3616651.out
 
 # modified beam search + rnnlm + lodr
-# 3616647
+# [20230108] /export/fs04/a12/rhuang/icefall_align/egs/spgispeech/ASR/tmp/icefall-asr-spgispeech-pruned-transducer-stateless2/exp20220108/modified_beam_search_rnnlm_LODR/log-decode-epoch-30-avg-15-modified_beam_search_rnnlm_LODR-beam-size-4-2-ngram-lm-scale--0.05-rnnlm-lm-scale-0.2-LODR-use-averaged-model-2023-01-09-17-15-46
+# /export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/ruizhe_contextual/log/decode-3616647.out
 
 # modified beam search + lm biasing
 # 

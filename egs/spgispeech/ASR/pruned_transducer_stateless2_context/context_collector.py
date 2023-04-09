@@ -22,6 +22,7 @@ class ContextCollector(torch.utils.data.Dataset):
         keep_ratio: float = 1.0,
         is_full_context: bool = False,
         backoff_id: int = None,
+        slides: Path = None,
     ):
         self.sp = sp
         self.bert_encoder = bert_encoder
@@ -33,6 +34,7 @@ class ContextCollector(torch.utils.data.Dataset):
         self.is_full_context = is_full_context   # use all words (rare or common) in the context
         # self.embedding_dim = self.bert_encoder.bert_model.config.hidden_size
         self.backoff_id = backoff_id
+        self.slides = slides
 
         logging.info(f"""
             n_distractors={n_distractors},
@@ -41,6 +43,7 @@ class ContextCollector(torch.utils.data.Dataset):
             keep_ratio={keep_ratio},
             is_full_context={is_full_context},
             bert_encoder={bert_encoder.name if bert_encoder is not None else None},
+            slides={slides},
         """)
 
         self.common_words = []
@@ -48,11 +51,15 @@ class ContextCollector(torch.utils.data.Dataset):
         self.all_words = []
         self.all_words2embeddings = None
         self.all_words2pieces = dict()
+        self.ec53_biasing_list = None
+        self.cached_ec53_wfst = dict()
+        self.cached_ec53_embeddings = dict()
 
         with open(path_rare_words / "all_rare_words.txt", "r") as fin:
             self.rare_words = [l.strip() for l in fin if len(l) > 0]
         
-        with open(path_rare_words / "common_words_6k.txt", "r") as fin:
+        # with open(path_rare_words / "common_words_6k.txt", "r") as fin:
+        with open(path_rare_words / "common_words_3k.txt", "r") as fin:
             self.common_words = [l.strip() for l in fin if len(l) > 0]
         
         self.all_words = self.rare_words + self.common_words  # sp needs a list of strings, can't be a set
@@ -63,9 +70,52 @@ class ContextCollector(torch.utils.data.Dataset):
         logging.info(f"Number of rare words: {len(self.rare_words)}. Examples: {random.sample(self.rare_words, 5)}")
         logging.info(f"Number of all words: {len(self.all_words)}. Examples: {random.sample(self.all_words, 5)}")
 
+        if is_predefined and slides is not None:
+            self.ec53_biasing_list = dict()
+
+            def read_ref_biasing_list(filename):
+                biasing_list = dict()
+                with open(filename, "r") as fin:
+                    for line in fin:
+                        line = line.strip()
+                        if len(line) == 0:
+                            continue
+                        line = line.split()
+                        word, weight = line
+                        biasing_list[word] = weight
+                return biasing_list
+            
+            from glob import glob
+            import pandas as pd
+            import numpy as np
+
+            new_words = set()
+
+            biasing_files = glob(f"{slides}/*.txt")
+            for filename in biasing_files:
+                biasing_list = read_ref_biasing_list(filename)
+                biasing_list2 = {word: weight for word, weight in biasing_list.items() if word not in self.common_words}
+
+                base_name = filename.split("/")[-1]
+                base_name = base_name.replace(".txt", "")  # one ec
+
+                logging.info(f"EC {base_name} biasing list size: {len(biasing_list)} -> {len(biasing_list2)}")
+                self.ec53_biasing_list[base_name] = biasing_list2
+                new_words.update(biasing_list2.keys())
+            
+            logging.info(f"Number of ECs in EC53 biasing lists: {len(self.ec53_biasing_list)}")
+            
+            df_describe = pd.DataFrame([len(l) for l in self.ec53_biasing_list.values()])
+            logging.info(f"Biasing lists stats: {str(df_describe.describe())}")
+
+            new_words = list(new_words)
+            logging.info(f"Number of words from predefined biasing lists: {len(new_words)}, Example: {random.sample(new_words, 5)}")
+            self.add_new_words(new_words)            
+
         if self.sp is not None:
             all_words2pieces = sp.encode(self.all_words, out_type=int)  # a list of list of int
-            self.all_words2pieces = {w: pieces for w, pieces in zip(self.all_words, all_words2pieces)}
+            all_words2pieces = {w: pieces for w, pieces in zip(self.all_words, all_words2pieces)}
+            self.all_words2pieces.update(all_words2pieces)
             logging.info(f"len(self.all_words2pieces)={len(self.all_words2pieces)}")
 
         self.temp_dict = None
@@ -143,7 +193,7 @@ class ContextCollector(torch.utils.data.Dataset):
         distractors_cnt = n_distractors_each.sum()
 
         distractors = random.sample(  # without replacement
-            self.rare_words, 
+            self.all_words,  # self.rare_words, 
             distractors_cnt
         )  # TODO: actually the context should contain both rare and common words
         # distractors = random.choices(  # random choices with replacement
@@ -160,16 +210,22 @@ class ContextCollector(torch.utils.data.Dataset):
 
         return rare_words_list
 
+    def _uid_2_ecid(self, uid):
+        ec_id = uid.split("_")[:-2]
+        ec_id = "_".join(ec_id)
+        return ec_id
+
     def _get_predefined_word_lists(self, batch):
         rare_words_list = []
         for cut in batch['supervisions']['cut']:
             uid = cut.supervisions[0].id
-            if uid in self.test_clean_biasing_list:
-                rare_words_list.append(self.test_clean_biasing_list[uid])
-            elif uid in self.test_other_biasing_list:
-                rare_words_list.append(self.test_other_biasing_list[uid])
+            ec_id = self._uid_2_ecid(uid)
+            
+            if ec_id in self.ec53_biasing_list:
+                rare_words_list.append(list(self.ec53_biasing_list[ec_id].keys()))
             else:
-                logging.error(f"uid={uid} cannot find the predefined biasing list of size {self.n_distractors}")
+                rare_words_list.append([])
+                logging.error(f"uid={uid} cannot find the predefined biasing list")
         # for wl in rare_words_list:
         #     for w in wl:
         #         if w not in self.all_words2pieces:
@@ -271,10 +327,24 @@ class ContextCollector(torch.utils.data.Dataset):
             rare_words_pieces_list.append(rare_words_pieces)
             num_words_per_utt.append(len(rare_words))
 
-        fsa_list, fsa_sizes = generate_context_graph_nfa(
-            words_pieces_list = rare_words_pieces_list, 
-            backoff_id = self.backoff_id, 
-            sp = self.sp,
-        )
+        uid_list = [cut.supervisions[0].id for cut in batch['supervisions']['cut']]
+        ec_id_list = [self._uid_2_ecid(uid) for uid in uid_list]
+        fsa_list = []
+        fsa_sizes = []
+        for ec_id, rare_words_pieces in zip(ec_id_list, rare_words_pieces_list):
+            if ec_id in self.cached_ec53_wfst:
+                fsa, fsa_size = self.cached_ec53_wfst[ec_id]
+            else:
+                fsa, fsa_size = generate_context_graph_nfa(
+                    words_pieces_list = [rare_words_pieces], 
+                    backoff_id = self.backoff_id, 
+                    sp = self.sp,
+                )
+                logging.info(f"Cached contextual WFST for EC {ec_id}, size: {fsa_size}")
+                fsa = fsa[0]
+                fsa_size = fsa_size[0]
+                self.cached_ec53_wfst[ec_id] = (fsa, fsa_size)
+            fsa_list.append(fsa)
+            fsa_sizes.append(fsa_size)
 
         return fsa_list, fsa_sizes, num_words_per_utt
