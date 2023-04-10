@@ -776,6 +776,10 @@ def main():
         params.suffix += f"-encoder-biasing"
     if not params.no_decoder_biasing:
         params.suffix += f"-decoder-biasing"
+    
+    import time
+    timestr = time.strftime("%Y%m%d-%H%M%S")
+    params.suffix += f"-{timestr}"
 
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
     logging.info("Decoding started")

@@ -246,7 +246,7 @@ class ContextCollector(torch.utils.data.Dataset):
             
             if ec_id in self.ec53_biasing_list:
                 biasing_list = list(self.ec53_biasing_list[ec_id].keys())
-                biasing_list = self.biasing_list_downsample_oracle(biasing_list, cut.supervisions[0].text)  # TODO
+                # biasing_list = self.biasing_list_downsample_oracle(biasing_list, cut.supervisions[0].text)  # TODO
                 rare_words_list.append(biasing_list)
             else:
                 rare_words_list.append([])

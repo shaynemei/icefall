@@ -61,8 +61,9 @@ epochs=30
 avgs=1
 use_averaged_model=$([ "$avgs" = 1 ] && echo "false" || echo "true")
 
-stage=1
-stop_stage=1
+stage=2
+stop_stage=2
+echo "Stage: $stage"
 
 # download model from coe
 # mkdir -p $exp_dir
@@ -85,7 +86,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
             --decoding-method $m \
             --context-dir "data/fbai-speech/is21_deep_bias/" \
             --n-distractors $n_distractors \
-            --keep-ratio 1.0 --no-encoder-biasing true --no-decoder-biasing true --no-wfst-lm-biasing false --biased-lm-scale 9 --is-predefined true --n-distractors 2000
+            --keep-ratio 1.0 --no-wfst-lm-biasing false --biased-lm-scale 9 --is-predefined true --n-distractors 100
         # --is-full-context true
         # --n-distractors 0
         # --no-encoder-biasing true --no-decoder-biasing true
@@ -164,7 +165,7 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
             --ngram-lm-scale -0.16 \
             --context-dir "data/fbai-speech/is21_deep_bias/" \
             --n-distractors $n_distractors \
-            --keep-ratio 1.0 --no-encoder-biasing true --no-decoder-biasing true
+            --keep-ratio 1.0 --no-wfst-lm-biasing false --biased-lm-scale 9 --is-predefined true --n-distractors 100
         # --is-predefined true
         # --no-encoder-biasing true --no-decoder-biasing true
         # --no-wfst-lm-biasing false --biased-lm-scale 10
