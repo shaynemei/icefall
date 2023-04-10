@@ -77,6 +77,11 @@ lang=$path_to_pretrained_asr_model/data/lang_bpe_500/
 
 ln -sf $path_to_pretrained_asr_model/exp/epoch-30.pt pruned_transducer_stateless7_context/exp/exp_libri_full/epoch-1.pt
 
+# librispeech+gigaspeech
+git clone https://huggingface.co/WeijiZhuang/icefall-asr-librispeech-pruned-transducer-stateless8-2022-12-02
+path_to_pretrained_asr_model="/export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/pretrained/icefall-asr-librispeech-pruned-transducer-stateless8-2022-12-02"
+lang=$path_to_pretrained_asr_model/data/lang_bpe_500/
+
 scp -r rhuang@login.clsp.jhu.edu:/export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/pruned_transducer_stateless7_context/*.* pruned_transducer_stateless7_context/.
 scp -r rhuang@login.clsp.jhu.edu:/export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/ruizhe_contextual/*.* ruizhe_contextual/.
 scp -r rhuang@login.clsp.jhu.edu:/export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/pruned_transducer_stateless2/beam_search.py pruned_transducer_stateless2/.

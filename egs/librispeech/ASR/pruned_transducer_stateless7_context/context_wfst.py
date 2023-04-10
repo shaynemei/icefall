@@ -180,7 +180,7 @@ def generate_context_graph_nfa(
             )
         
         for token_id in range(sp.vocab_size()):
-            token = sp.id_to_piece(i)
+            token = sp.id_to_piece(token_id)
             if token.startswith("▁"):
                 arcs.append([boundary_state, start_state, token_id, 0, 0.0])
 

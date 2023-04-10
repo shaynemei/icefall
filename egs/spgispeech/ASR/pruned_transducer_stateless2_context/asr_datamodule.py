@@ -27,6 +27,7 @@ from lhotse.dataset import (
     CutConcatenate,
     CutMix,
     DynamicBucketingSampler,
+    BucketingSampler,
     K2SpeechRecognitionDataset,
     PrecomputedFeatures,
     SpecAugment,
@@ -308,6 +309,57 @@ class SPGISpeechAsrDataModule:
             cuts, max_duration=self.args.max_duration, shuffle=False
         )
         logging.debug("About to create test dataloader")
+        test_dl = DataLoader(
+            test,
+            batch_size=None,
+            sampler=sampler,
+            num_workers=self.args.num_workers,
+        )
+        return test_dl
+
+    def ec53_dataloaders(self, cuts: CutSet) -> DataLoader:
+        logging.debug("About to create ec53 dataset")
+        test = K2SpeechRecognitionDataset(
+            input_strategy=OnTheFlyFeatures(Fbank(FbankConfig(num_mel_bins=80)))
+            if self.args.on_the_fly_feats
+            else PrecomputedFeatures(),
+            return_cuts=self.args.return_cuts,
+        )
+
+        def uid_2_ecid(uid):
+            ec_id = uid.split("_")[:-2]
+            ec_id = "_".join(ec_id)
+            return ec_id
+    
+        cuts = cuts.to_eager()
+    
+        from collections import defaultdict
+        ec_2_cuts = defaultdict(list)
+        for c in cuts:
+            uid = c.supervisions[0].id
+            ec_id = uid_2_ecid(uid)
+            ec_2_cuts[ec_id].append(c)
+        # ec_2_cuts = {k: ec_2_cuts[k] for k in list(ec_2_cuts)[:5]}
+
+        sampler = BucketingSampler(
+            cuts,
+            num_buckets=len(ec_2_cuts),
+            # Args passed into SimpleCutSampler
+            max_duration=self.args.max_duration, shuffle=False
+        )
+        
+        sampler.buckets = [[CutSet.from_cuts(ec_2_cuts[ec_id]) for ec_id in ec_2_cuts]]
+        sampler.buckets = list(zip(*sampler.buckets))
+        sampler.bucket_samplers = [
+            BucketingSampler(
+                *bucket_cut_sets,
+                num_buckets=5,
+                max_duration=self.args.max_duration, shuffle=False,
+            )
+            for bucket_cut_sets in sampler.buckets
+        ]
+
+        logging.debug("About to create ec53 dataloader")
         test_dl = DataLoader(
             test,
             batch_size=None,

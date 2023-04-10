@@ -89,12 +89,13 @@ class ContextCollector(torch.utils.data.Dataset):
             import pandas as pd
             import numpy as np
 
-            new_words = set()
+            new_words = set()                
 
             biasing_files = glob(f"{slides}/*.txt")
             for filename in biasing_files:
                 biasing_list = read_ref_biasing_list(filename)
                 biasing_list2 = {word: weight for word, weight in biasing_list.items() if word not in self.common_words}
+                # biasing_list2 = {word: weight for word, weight in biasing_list.items() if word in self.all_words}  # only contain "known" words
 
                 base_name = filename.split("/")[-1]
                 base_name = base_name.replace(".txt", "")  # one ec
@@ -110,7 +111,11 @@ class ContextCollector(torch.utils.data.Dataset):
 
             new_words = list(new_words)
             logging.info(f"Number of words from predefined biasing lists: {len(new_words)}, Example: {random.sample(new_words, 5)}")
-            self.add_new_words(new_words)            
+            self.add_new_words(new_words)
+
+            _all_words = set(self.all_words)
+            oovs = [w for w in new_words if w not in _all_words]
+            logging.info(f"Number of OOVs from predefined biasing lists: {len(oovs)}, Example: {random.sample(oovs, min(5, len(oovs)))}")
 
         if self.sp is not None:
             all_words2pieces = sp.encode(self.all_words, out_type=int)  # a list of list of int
@@ -150,7 +155,8 @@ class ContextCollector(torch.utils.data.Dataset):
         pass
 
     def _get_random_word_lists(self, batch):
-        texts = batch["supervisions"]["text"]
+        # texts = batch["supervisions"]["text"]  # For training
+        texts = [cut.supervisions[0].text for cut in batch['supervisions']['cut']]  # For decoding ec53
 
         new_words = []
         rare_words_list = []
@@ -214,6 +220,23 @@ class ContextCollector(torch.utils.data.Dataset):
         ec_id = uid.split("_")[:-2]
         ec_id = "_".join(ec_id)
         return ec_id
+    
+    def biasing_list_downsample_oracle(self, biasing_list, text):
+        if len(biasing_list) < 700:
+            return biasing_list
+
+        text = set(text.split())
+        
+        gt_words = [w for w in biasing_list if w in text]
+        other_words = [w for w in biasing_list if w not in text]
+
+        sample_size = random.randint(200, 700)
+        distractors = random.sample(
+            other_words,
+            sample_size
+        )
+        return gt_words + distractors
+
 
     def _get_predefined_word_lists(self, batch):
         rare_words_list = []
@@ -222,7 +245,9 @@ class ContextCollector(torch.utils.data.Dataset):
             ec_id = self._uid_2_ecid(uid)
             
             if ec_id in self.ec53_biasing_list:
-                rare_words_list.append(list(self.ec53_biasing_list[ec_id].keys()))
+                biasing_list = list(self.ec53_biasing_list[ec_id].keys())
+                biasing_list = self.biasing_list_downsample_oracle(biasing_list, cut.supervisions[0].text)  # TODO
+                rare_words_list.append(biasing_list)
             else:
                 rare_words_list.append([])
                 logging.error(f"uid={uid} cannot find the predefined biasing list")

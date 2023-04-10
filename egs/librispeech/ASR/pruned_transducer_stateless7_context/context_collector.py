@@ -106,17 +106,20 @@ class ContextCollector(torch.utils.data.Dataset):
             logging.info(f"len(self.all_words2embeddings)={len(self.all_words2embeddings)}")
         
         if is_predefined:
-            new_words = list()
+            new_words_bias = set()
+            all_words_bias = set()
             for uid, wlist in chain(self.test_clean_biasing_list.items(), self.test_other_biasing_list.items()):
                 for word in wlist:
-                    if word not in self.common_words or word not in self.rare_words:
-                        new_words.append(word)
+                    if word not in self.common_words and word not in self.rare_words:
+                        new_words_bias.add(word)
+                    all_words_bias.add(word)
             # if self.all_words2pieces is not None and word not in self.all_words2pieces:
             #     self.all_words2pieces[word] = self.sp.encode(word, out_type=int)
             # if self.all_words2embeddings is not None and word not in self.all_words2embeddings:
             #     self.all_words2embeddings[word] = self.bert_encoder.encode_strings([word])[0]
-            if len(new_words) > 0:
-                self.add_new_words(new_words, silent=True)
+            logging.info(f"OOVs in the biasing list: {len(new_words_bias)}/{len(all_words_bias)}")
+            if len(new_words_bias) > 0:
+                self.add_new_words(list(new_words_bias), silent=True)
 
         if is_predefined:
             assert self.ratio_distractors is None

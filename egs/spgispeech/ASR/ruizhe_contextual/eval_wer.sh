@@ -222,9 +222,17 @@ eval_wer $recogs
 # 'biased_lm_scale': 4.0
 # /export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/ruizhe_contextual/log/decode-3616831.out
 # 10.63_48410     9.70_40179      64.86_2219      58.73_249       34.08_1246      14.59_298
+# 'biased_lm_scale': 7.0
+# /export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/ruizhe_contextual/log/decode-3616848.out
+# 10.68_48634     9.77_40436      64.07_2192      57.78_245       33.12_1211      14.49_296
 
 # modified beam search + lm biasing + rnnlm + lodr
 # rnn 0.2-0.1, biased_lm_scale 6.0
 # /export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/ruizhe_contextual/log/decode-3616835.out
 # 10.41_47400     9.50_39320      63.46_2171      56.60_240       32.19_1177      14.19_290 
 
+# modified beam search + neural biasing
+
+# modified beam search + neural biasing + rnnlm + lodr
+
+# modified beam search + neural biasing + lm biasing + rnnlm + lodr

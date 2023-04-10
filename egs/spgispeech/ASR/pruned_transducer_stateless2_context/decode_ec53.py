@@ -447,8 +447,16 @@ def decode_one_batch(
     model.scratch_space["biased_lm_scale"] = params.biased_lm_scale
 
     if not params.no_wfst_lm_biasing:
+        # cuts in the same batch can share the sample context
+        batch_size = len(batch['supervisions']['cut'])
+        _batch = {'supervisions': {'cut': batch['supervisions']['cut'][:1]}}
+
         fsa_list, fsa_sizes, num_words_per_utt2 = \
-            context_collector.get_context_word_wfst(batch)
+            context_collector.get_context_word_wfst(_batch)
+        fsa_list = fsa_list * batch_size
+        fsa_sizes = fsa_sizes * batch_size
+        num_words_per_utt2 = num_words_per_utt2 * batch_size
+
         biased_lm_list = [
             BiasedNgramLm(
                 fst=fsa, 
@@ -458,14 +466,22 @@ def decode_one_batch(
         model.scratch_space["biased_lm_list"] = biased_lm_list
 
     if not model.no_encoder_biasing:
+        # cuts in the same batch can share the sample context
+        batch_size = len(batch['supervisions']['cut'])
+        _batch = {'supervisions': {'cut': batch['supervisions']['cut'][:1]}}
+        
         word_list, word_lengths, num_words_per_utt = \
-            context_collector.get_context_word_list(batch)
+            context_collector.get_context_word_list(_batch)
         word_list = word_list.to(device)
-        contexts, contexts_mask = model.context_encoder.embed_contexts(
+        contexts_, contexts_mask_ = model.context_encoder.embed_contexts(
             word_list,
             word_lengths,
             num_words_per_utt,
         )
+
+        contexts = contexts_.expand(batch_size, -1, -1)
+        contexts_mask = contexts_mask_.expand(batch_size, -1)
+
         model.scratch_space["contexts"] = contexts
         model.scratch_space["contexts_mask"] = contexts_mask
 
@@ -777,6 +793,10 @@ def main():
     if not params.no_decoder_biasing:
         params.suffix += f"-decoder-biasing"
 
+    import time
+    timestr = time.strftime("%Y%m%d-%H%M%S")
+    params.suffix += f"-{timestr}"
+
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
     logging.info("Decoding started")
 
@@ -924,7 +944,22 @@ def main():
 
     dev_dl = spgispeech.test_dataloaders(dev_cuts)
     val_dl = spgispeech.test_dataloaders(val_cuts)
-    ec53_dl = spgispeech.test_dataloaders(ec53_cuts)
+    ec53_dl = spgispeech.ec53_dataloaders(ec53_cuts)
+
+    # def uid_2_ecid(uid):
+    #     ec_id = uid.split("_")[:-2]
+    #     ec_id = "_".join(ec_id)
+    #     return ec_id
+    # for batch_idx, batch in enumerate(ec53_dl):
+    #     cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
+    #     if batch_idx % 50 == 0:
+    #         print()
+    #         logging.info(f"batch_idx={batch_idx}")
+    #         logging.info(cut_ids)
+    #         logging.info([cut.duration for cut in batch["supervisions"]["cut"]])
+    #     ec_ids = [uid_2_ecid(uid) for uid in cut_ids]
+    #     assert all(ec_ids), str(cut_ids)
+    # exit(0)
 
     # test_sets = ["dev", "val"]
     # test_dl = [dev_dl, val_dl]
