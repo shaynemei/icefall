@@ -1185,6 +1185,16 @@ def main():
     # test_clean_cuts = CutSet.from_cuts(test_clean_cuts)
     # test_other_cuts = CutSet.from_cuts(test_other_cuts)
 
+    # from lhotse import CutSet
+    # test_clean_cuts = [c for c in test_clean_cuts if c.id == "1995-1836-0000-862"] + [c for c in test_clean_cuts][:9]
+    # # test_clean_cuts = [c for c in test_clean_cuts if c.id == "1089-134686-0016-2185"]
+    # test_clean_cuts = CutSet.from_cuts(test_clean_cuts)
+    # test_clean_cuts.describe()
+
+    # TODO:
+    # 7729-102255-0015-210
+    # 1995-1836-0000-8621995-1836-0000
+
     # import random
     # random.seed(10)
 

@@ -147,6 +147,7 @@ def generate_context_graph_nfa(
         # arcs.append([start_state, start_state, backoff_id, 0, 0.0])
         for token_id in range(sp.vocab_size()):
             arcs.append([start_state, start_state, token_id, 0, 0.0])
+            # arcs.append([boundary_state, start_state, token_id, 0, 0.0])  # Note: adding this line here degrades performance. Why? Because it will break the ability to detect word boundary.
 
         for tokens in words_pieces:
             assert len(tokens) > 0
