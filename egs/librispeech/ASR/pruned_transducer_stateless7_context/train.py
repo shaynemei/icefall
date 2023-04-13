@@ -648,13 +648,15 @@ def load_checkpoint_if_available(
         "best_valid_loss",
     ]
 
-    saved_params_hard_wired = {
-        "best_train_epoch": 28,
-        "best_valid_epoch": 30,
-        "batch_idx_train": 105240,
-        "best_train_loss": 0.15620702543731815,
-        "best_valid_loss": 0.1486564241859933,
-    }
+    saved_params_hard_wired = {}
+
+    # saved_params_hard_wired = {
+    #     "best_train_epoch": 28,
+    #     "best_valid_epoch": 30,
+    #     "batch_idx_train": 105240,
+    #     "best_train_loss": 0.15620702543731815,
+    #     "best_valid_loss": 0.1486564241859933,
+    # }
 
     # saved_params_hard_wired = {
     #     "best_train_epoch": 10,
@@ -667,9 +669,13 @@ def load_checkpoint_if_available(
     for k in keys:
         if k in saved_params:
             params[k] = saved_params[k]
-        elif params.start_epoch == 2:
+        elif params.start_epoch == 2 and k in saved_params_hard_wired:
             params[k] = saved_params_hard_wired[k]
         logging.info(f"{k}: {params[k]}")
+
+    # # only used for stage 2
+    # params["batch_idx_train"] = 160000
+    # logging.info(f"Use batch_idx_train: {params['batch_idx_train']}")
 
     if params.start_batch > 0:
         if "cur_epoch" in saved_params:
@@ -1239,7 +1245,7 @@ def run(rank, world_size, args):
         # You should use ../local/display_manifest_statistics.py to get
         # an utterance duration distribution for your dataset to select
         # the threshold
-        if c.duration < 1.0 or c.duration > 25.0:
+        if c.duration < 1.0 or c.duration > 40.0:
             logging.warning(
                 f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
             )

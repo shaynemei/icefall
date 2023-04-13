@@ -178,7 +178,11 @@ class ContextCollector(torch.utils.data.Dataset):
             rare_words = list(set(rare_words))  # deduplication
 
             if self.keep_ratio < 1.0 and len(rare_words) > 0:
-                rare_words = random.sample(rare_words, int(len(rare_words) * self.keep_ratio))
+                keep_size = int(len(rare_words) * self.keep_ratio)
+                if keep_size > 0:
+                    rare_words = random.sample(rare_words, keep_size)
+                else:
+                    rare_words = []
 
             rare_words_list.append(rare_words)
         

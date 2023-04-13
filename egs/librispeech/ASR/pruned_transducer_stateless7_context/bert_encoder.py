@@ -34,6 +34,13 @@ class BertEncoder:
         encoded_input = encoded_input.to(self.bert_model.device)
         out = self.bert_model(**encoded_input).pooler_output
 
+        # TODO:
+        # 1. compare with some online API
+        # 2. smaller or no dropout
+        # 3. other activation function: different ranges, sigmoid
+        # 4. compare the range with lstm encoder or rnnt hidden representation
+        # 5. more layers, transformer layers: how to connect two spaces
+
         # out is of the shape: len(word_list) * 768
         return out
         

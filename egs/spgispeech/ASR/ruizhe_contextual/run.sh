@@ -9,6 +9,9 @@ path_to_pretrained_asr_model="/exp/rhuang/icefall_latest/egs/spgispeech/ASR/pret
 # ln -s $path_to_pretrained_asr_model/exp/pretrained.pt $path_to_pretrained_asr_model/exp/epoch-1.pt
 lang=$path_to_pretrained_asr_model/data/lang_bpe_500/
 
+scp -r rhuang@login.clsp.jhu.edu:/export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/pruned_transducer_stateless7_context/*.* pruned_transducer_stateless7_context/.
+scp -r rhuang@login.clsp.jhu.edu:/export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/ruizhe_contextual/*.* ruizhe_contextual/.
+scp -r rhuang@login.clsp.jhu.edu:/export/fs04/a12/rhuang/icefall_align2/egs/librispeech/ASR/pruned_transducer_stateless2/beam_search.py pruned_transducer_stateless2/.
 scp -r rhuang@login.clsp.jhu.edu:/export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/pruned_transducer_stateless2/*.* pruned_transducer_stateless2/.
 scp -r rhuang@login.clsp.jhu.edu:/export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/pruned_transducer_stateless2_context/*.* pruned_transducer_stateless2_context/.
 scp -r rhuang@login.clsp.jhu.edu:/export/fs04/a12/rhuang/icefall_align2/egs/spgispeech/ASR/ruizhe_contextual/*.* ruizhe_contextual/.
