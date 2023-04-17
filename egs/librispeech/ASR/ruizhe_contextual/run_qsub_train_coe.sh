@@ -6,7 +6,7 @@
 #$ -M ruizhe@jhu.edu
 #$ -m e
 #$ -l mem_free=20G,h_rt=600:00:00,gpu=4
-#$ -q gpu.q@@v100
+#$ -q gpu.q@@rtx
 
 # #$ -q gpu.q@@v100
 # #$ -q gpu.q@@rtx
@@ -55,6 +55,7 @@ echo "hostname: `hostname`"
 #   --master-port 12535
 
 max_duration=1400
+max_duration=1200
 n_distractors=100
 n_distractors=0
 n_distractors=-1
@@ -78,11 +79,12 @@ full_libri_name=$([ "$full_libri" = true ] && echo "full" || echo "100")
 path_to_pretrained_asr_model=/exp/rhuang/librispeech/pretrained2/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/
 # exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_continue3
 # exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_bert_stage1
+exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_fasttext_stage1
 # exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_continue4
 # exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_stage1
 # exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_stage2
 # exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_no_stage1
-exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_stage1.4
+# exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c${n_distractors}_stage1.4
 mkdir -p $exp_dir
 
 # # From pretrained ASR model
@@ -113,9 +115,9 @@ python pruned_transducer_stateless7_context/train.py \
   --base-lr 0.1 \
   --context-dir "data/fbai-speech/is21_deep_bias/" \
   --keep-ratio 1.0 \
-  --start-epoch 7 \
-  --num-epochs 50 \
-  --n-distractors $n_distractors --n-distractors 0 --is-full-context true --keep-ratio 0.7
+  --start-epoch 2 \
+  --num-epochs 30 \
+  --n-distractors $n_distractors --is-full-context true --is-pretrained-context-encoder true
 
 # Stage1: --n-distractors 0 --is-full-context true
 # Stage1.4: --n-distractors 0 --is-full-context true --keep-ratio 0.9
@@ -217,3 +219,14 @@ python pruned_transducer_stateless7_context/train.py \
 # exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c-1_stage2_10pt/
 # exp_dir=pruned_transducer_stateless7_context/exp/exp_libri_full_c-1_no_stage1
 #
+
+
+# BERT: 
+# stage1
+# /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10600123.out
+# /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10600362.out
+#
+# go stage2 directly:
+# /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10600438.out
+# /exp/rhuang/icefall_latest/egs/librispeech/ASR/ruizhe_contextual/log/log-train-10602901.out
+

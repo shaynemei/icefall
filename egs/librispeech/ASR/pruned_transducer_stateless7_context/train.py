@@ -75,7 +75,8 @@ from zipformer import Zipformer
 from egs.librispeech.ASR.pruned_transducer_stateless7_context.context_encoder import ContextEncoder
 from egs.librispeech.ASR.pruned_transducer_stateless7_context.context_encoder_lstm import ContextEncoderLSTM
 from egs.librispeech.ASR.pruned_transducer_stateless7_context.context_encoder_pretrained import ContextEncoderPretrained
-from egs.librispeech.ASR.pruned_transducer_stateless7_context.bert_encoder import BertEncoder
+from egs.librispeech.ASR.pruned_transducer_stateless7_context.word_encoder_bert import BertEncoder
+from egs.librispeech.ASR.pruned_transducer_stateless7_context.word_encoder_fasttext import FastTextEncoder
 from biasing_module import BiasingModule
 from egs.librispeech.ASR.pruned_transducer_stateless7_context.context_collector import ContextCollector
 
@@ -483,6 +484,8 @@ def get_params() -> AttributeDict:
             "subsampling_factor": 4,  # not passed in, this is fixed.
             "warm_step": 2000,
             "env_info": get_env_info(),
+            # parameters for contextual ASR
+            "context_embedding_size": -1,
         }
     )
 
@@ -540,7 +543,7 @@ def get_contextual_model(params: AttributeDict) -> nn.Module:
         context_encoder = ContextEncoderPretrained(
             # context_encoder_dim=int(params.encoder_dims.split(",")[-1]),
             # output_dim=params.joiner_dim,
-            context_encoder_dim=768,  # TODO: Hard-wired for BERT-base now
+            context_encoder_dim=params.context_embedding_size,
             output_dim=context_dim,
             drop_out=0.1,
         )
@@ -1115,16 +1118,21 @@ def run(rank, world_size, args):
     logging.info("About to load context generator")
     params.context_dir = Path(params.context_dir)
     if params.is_pretrained_context_encoder:
-        bert_encoder = BertEncoder(device=device)
+        # word_encoder = BertEncoder(device=device)
+        word_encoder = FastTextEncoder(
+            embeddings_path="pruned_transducer_stateless7_context/exp/exp_fasttext/fasttext_all_words.embeddings.txt", 
+            model_path="pruned_transducer_stateless7_context/exp/exp_fasttext/cc.en.300.bin",
+        )
         context_collector = ContextCollector(
             path_is21_deep_bias=params.context_dir,
             sp=None,
-            bert_encoder=bert_encoder,
+            bert_encoder=word_encoder,
             is_predefined=False,
             n_distractors=params.n_distractors,
             keep_ratio=params.keep_ratio,
             is_full_context=params.is_full_context,
         )
+        params.context_embedding_size = word_encoder.embedding_size
     else:
         bert_encoder=None
         context_collector = ContextCollector(
@@ -1306,8 +1314,8 @@ def run(rank, world_size, args):
         scaler.load_state_dict(checkpoints["grad_scaler"])
 
     # Add new words to context_collector, and free up the BERT model from GPU
-    if False:
-        new_words = list()
+    if params.is_pretrained_context_encoder:
+        new_words = set()
         logging.info("Looking for new words in train+dev cuts...")
         total_cuts = 0
         for cut_idx, cut in enumerate(itertools.chain(train_cuts, valid_cuts)):
@@ -1318,12 +1326,12 @@ def run(rank, world_size, args):
             for word in text.split():
                 if word not in context_collector.common_words or \
                     word not in context_collector.rare_words:
-                        new_words.append(word)
+                        new_words.add(word)
         logging.info(f"{len(new_words)} new words detected.")
         logging.info(f"Total cuts: {total_cuts}")
-        context_collector.add_new_words(new_words)
-        if bert_encoder is not None:
-            bert_encoder.free_up()
+        context_collector.add_new_words(list(new_words))
+        if word_encoder is not None:
+            word_encoder.free_up()
 
     for epoch in range(params.start_epoch, params.num_epochs + 1):
         scheduler.step_epoch(epoch - 1)

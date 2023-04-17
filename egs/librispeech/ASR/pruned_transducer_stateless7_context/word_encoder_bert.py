@@ -4,7 +4,7 @@ import logging
 
 
 class BertEncoder:
-    def __init__(self, device=None):
+    def __init__(self, device=None, **kwargs):
         # https://huggingface.co/bert-base-uncased
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
         # TODO: fast_tokenizers: https://huggingface.co/docs/transformers/v4.27.2/en/fast_tokenizers
@@ -15,6 +15,7 @@ class BertEncoder:
             param.requires_grad = False
                
         self.name = self.bert_model.config._name_or_path
+        self.embedding_size = 768
 
         num_param = sum([p.numel() for p in self.bert_model.parameters()])
         logging.info(f"Number of parameters in '{self.name}': {num_param}")

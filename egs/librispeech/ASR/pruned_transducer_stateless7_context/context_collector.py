@@ -7,7 +7,7 @@ import logging
 import ast
 import numpy as np
 from itertools import chain
-from bert_encoder import BertEncoder
+from word_encoder_bert import BertEncoder
 from context_wfst import generate_context_graph_nfa
 
 class ContextCollector(torch.utils.data.Dataset):

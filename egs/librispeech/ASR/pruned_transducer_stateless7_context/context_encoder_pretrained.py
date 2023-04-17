@@ -17,13 +17,22 @@ class ContextEncoderPretrained(ContextEncoder):
 
         self.drop_out = torch.nn.Dropout(drop_out)
         self.linear1 = torch.nn.Linear(
-            context_encoder_dim,
-            context_encoder_dim,
+            context_encoder_dim,  # 768
+            256,
+        )
+        self.linear3 = torch.nn.Linear(
+            256,
+            256,
+        )
+        self.linear4 = torch.nn.Linear(
+            256,
+            256,
         )
         self.linear2 = torch.nn.Linear(
-            context_encoder_dim,
+            256,
             output_dim
         )
+        self.sigmoid = torch.nn.Sigmoid()
 
     def forward(
         self, 
@@ -31,8 +40,10 @@ class ContextEncoderPretrained(ContextEncoder):
         word_lengths,
     ):
         out = word_list  # Shape: N*L*D
-        out = self.drop_out(out)
-        out = F.relu(self.linear1(out))
-        out = self.drop_out(out)
-        out = F.relu(self.linear2(out))
+        # out = self.drop_out(out)
+        out = self.sigmoid(self.linear1(out))  # Note: ReLU may not be a good choice here
+        out = self.sigmoid(self.linear3(out))
+        out = self.sigmoid(self.linear4(out))
+        # out = self.drop_out(out)
+        out = self.linear2(out)
         return out
