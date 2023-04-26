@@ -46,10 +46,10 @@ class ContextCollector(torch.utils.data.Dataset):
         self.common_words = None
         self.rare_words = None
         self.all_words = None
-        with open(path_is21_deep_bias / "words/all_rare_words.txt", "r") as fin:
+        with open(path_is21_deep_bias / "words/all_rare_words.txt", "r", encoding="utf-8") as fin:
             self.rare_words = [l.strip().upper() for l in fin if len(l) > 0]
         
-        with open(path_is21_deep_bias / "words/common_words_5k.txt", "r") as fin:
+        with open(path_is21_deep_bias / "words/common_words_5k.txt", "r", encoding="utf-8") as fin:
             self.common_words = [l.strip().upper() for l in fin if len(l) > 0]
         
         self.all_words = self.rare_words + self.common_words  # sp needs a list of strings, can't be a set
@@ -202,7 +202,7 @@ class ContextCollector(torch.utils.data.Dataset):
             else:
                 n_distractors_each = np.full(len(texts), self.n_distractors, int)
         distractors_cnt = n_distractors_each.sum()
-
+        print(distractors_cnt)
         distractors = random.sample(  # without replacement
             self.rare_words, 
             distractors_cnt

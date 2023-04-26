@@ -28,46 +28,191 @@ import torch.nn.functional as F
 from torch import Tensor
 from torch.nn import Embedding as ScaledEmbedding
 
+from icefall.utils import is_jit_tracing
+
+
+class ScaledConv2d(nn.Conv2d):
+    # See docs for ScaledLinear
+    def __init__(
+        self,
+        *args,
+        initial_scale: float = 1.0,
+        initial_speed: float = 1.0,
+        **kwargs
+    ):
+        super(ScaledConv2d, self).__init__(*args, **kwargs)
+        initial_scale = torch.tensor(initial_scale).log()
+        self.weight_scale = nn.Parameter(initial_scale.clone().detach())
+        if self.bias is not None:
+            self.bias_scale = nn.Parameter(initial_scale.clone().detach())
+        else:
+            self.register_parameter("bias_scale", None)
+        self._reset_parameters(
+            initial_speed
+        )  # Overrides the reset_parameters in base class
+
+    def _reset_parameters(self, initial_speed: float):
+        std = 0.1 / initial_speed
+        a = (3 ** 0.5) * std
+        nn.init.uniform_(self.weight, -a, a)
+        if self.bias is not None:
+            nn.init.constant_(self.bias, 0.0)
+        fan_in = self.weight.shape[1] * self.weight[0][0].numel()
+        scale = fan_in ** -0.5  # 1/sqrt(fan_in)
+        with torch.no_grad():
+            self.weight_scale += torch.tensor(scale / std).log()
+
+    def get_weight(self):
+        return self.weight * self.weight_scale.exp()
+
+    def get_bias(self):
+        # see https://github.com/pytorch/pytorch/issues/24135
+        bias = self.bias
+        bias_scale = self.bias_scale
+        if bias is None or bias_scale is None:
+            return None
+        else:
+            return bias * bias_scale.exp()
+
+    def _conv_forward(self, input, weight):
+        F = torch.nn.functional
+        if self.padding_mode != "zeros":
+            return F.conv2d(
+                F.pad(
+                    input,
+                    self._reversed_padding_repeated_twice,
+                    mode=self.padding_mode,
+                ),
+                weight,
+                self.get_bias(),
+                self.stride,
+                (0, 0),
+                self.dilation,
+                self.groups,
+            )
+        return F.conv2d(
+            input,
+            weight,
+            self.get_bias(),
+            self.stride,
+            self.padding,
+            self.dilation,
+            self.groups,
+        )
+
+    def forward(self, input: Tensor) -> Tensor:
+        return self._conv_forward(input, self.get_weight())
+
 
 class ActivationBalancerFunction(torch.autograd.Function):
     @staticmethod
     def forward(
         ctx,
         x: Tensor,
-        scale_factor: Tensor,
-        sign_factor: Optional[Tensor],
         channel_dim: int,
+        min_positive: float,  # e.g. 0.05
+        max_positive: float,  # e.g. 0.95
+        max_factor: float,  # e.g. 0.01
+        min_abs: float,  # e.g. 0.2
+        max_abs: float,  # e.g. 100.0
     ) -> Tensor:
-        if channel_dim < 0:
-            channel_dim += x.ndim
-        ctx.channel_dim = channel_dim
-        xgt0 = x > 0
-        if sign_factor is None:
-            ctx.save_for_backward(xgt0, scale_factor)
-        else:
-            ctx.save_for_backward(xgt0, scale_factor, sign_factor)
+        if x.requires_grad:
+            if channel_dim < 0:
+                channel_dim += x.ndim
+
+            #  sum_dims = [d for d in range(x.ndim) if d != channel_dim]
+            # The above line is not torch scriptable for torch 1.6.0
+            # torch.jit.frontend.NotSupportedError: comprehension ifs not supported yet:  # noqa
+            sum_dims = []
+            for d in range(x.ndim):
+                if d != channel_dim:
+                    sum_dims.append(d)
+
+            xgt0 = x > 0
+            proportion_positive = torch.mean(
+                xgt0.to(x.dtype), dim=sum_dims, keepdim=True
+            )
+            factor1 = (
+                (min_positive - proportion_positive).relu()
+                * (max_factor / min_positive)
+                if min_positive != 0.0
+                else 0.0
+            )
+            factor2 = (
+                (proportion_positive - max_positive).relu()
+                * (max_factor / (max_positive - 1.0))
+                if max_positive != 1.0
+                else 0.0
+            )
+            factor = factor1 + factor2
+            if isinstance(factor, float):
+                factor = torch.zeros_like(proportion_positive)
+
+            mean_abs = torch.mean(x.abs(), dim=sum_dims, keepdim=True)
+            below_threshold = mean_abs < min_abs
+            above_threshold = mean_abs > max_abs
+
+            ctx.save_for_backward(
+                factor, xgt0, below_threshold, above_threshold
+            )
+            ctx.max_factor = max_factor
+            ctx.sum_dims = sum_dims
         return x
 
     @staticmethod
-    def backward(ctx, x_grad: Tensor) -> Tuple[Tensor, None, None, None]:
-        if len(ctx.saved_tensors) == 3:
-            xgt0, scale_factor, sign_factor = ctx.saved_tensors
-            for _ in range(ctx.channel_dim, x_grad.ndim - 1):
-                scale_factor = scale_factor.unsqueeze(-1)
-                sign_factor = sign_factor.unsqueeze(-1)
-            factor = sign_factor + scale_factor * (xgt0.to(x_grad.dtype) - 0.5)
-        else:
-            xgt0, scale_factor = ctx.saved_tensors
-            for _ in range(ctx.channel_dim, x_grad.ndim - 1):
-                scale_factor = scale_factor.unsqueeze(-1)
-            factor = scale_factor * (xgt0.to(x_grad.dtype) - 0.5)
-        neg_delta_grad = x_grad.abs() * factor
-        return (
-            x_grad - neg_delta_grad,
-            None,
-            None,
-            None,
+    def backward(
+        ctx, x_grad: Tensor
+    ) -> Tuple[Tensor, None, None, None, None, None, None]:
+        factor, xgt0, below_threshold, above_threshold = ctx.saved_tensors
+        dtype = x_grad.dtype
+        scale_factor = (
+            (below_threshold.to(dtype) - above_threshold.to(dtype))
+            * (xgt0.to(dtype) - 0.5)
+            * (ctx.max_factor * 2.0)
         )
+
+        neg_delta_grad = x_grad.abs() * (factor + scale_factor)
+        return x_grad - neg_delta_grad, None, None, None, None, None, None
+
+#class ActivationBalancerFunction(torch.autograd.Function):
+#    @staticmethod
+#    def forward(
+#        ctx,
+#        x: Tensor,
+#        scale_factor: Tensor,
+#        sign_factor: Optional[Tensor],
+#        channel_dim: int,
+#    ) -> Tensor:
+#        if channel_dim < 0:
+#            channel_dim += x.ndim
+#        ctx.channel_dim = channel_dim
+#        xgt0 = x > 0
+#        if sign_factor is None:
+#            ctx.save_for_backward(xgt0, scale_factor)
+#        else:
+#            ctx.save_for_backward(xgt0, scale_factor, sign_factor)
+#        return x
+#
+#    @staticmethod
+#    def backward(ctx, x_grad: Tensor) -> Tuple[Tensor, None, None, None]:
+#        if len(ctx.saved_tensors) == 3:
+#            xgt0, scale_factor, sign_factor = ctx.saved_tensors
+#            for _ in range(ctx.channel_dim, x_grad.ndim - 1):
+#                scale_factor = scale_factor.unsqueeze(-1)
+#                sign_factor = sign_factor.unsqueeze(-1)
+#            factor = sign_factor + scale_factor * (xgt0.to(x_grad.dtype) - 0.5)
+#        else:
+#            xgt0, scale_factor = ctx.saved_tensors
+#            for _ in range(ctx.channel_dim, x_grad.ndim - 1):
+#                scale_factor = scale_factor.unsqueeze(-1)
+#            factor = scale_factor * (xgt0.to(x_grad.dtype) - 0.5)
+#        neg_delta_grad = x_grad.abs() * factor
+#        return (
+#            x_grad - neg_delta_grad,
+#            None,
+#            None,
+#            None,
+#        )
 
 
 def _compute_scale_factor(
@@ -403,19 +548,19 @@ class BasicNorm(torch.nn.Module):
             # allowed range by making parameters that are outside the allowed
             # range noisy.
 
-            # gradients to allow the parameter to get back into the allowed
-            # region if it happens to exit it.
+            # gradients to allow the parameter to get back into the allowed region if it happens to exit it
             eps = eps.clamp(min=self.eps_min, max=self.eps_max)
         scales = (
             torch.mean(x**2, dim=self.channel_dim, keepdim=True) + eps.exp()
         ) ** -0.5
         return x * scales
 
-
-def ScaledLinear(*args, initial_scale: float = 1.0, **kwargs) -> nn.Linear:
+class ScaledLinear(nn.Linear):
     """
-    Behaves like a constructor of a modified version of nn.Linear
-    that gives an easy way to set the default initial parameter scale.
+    A modified version of nn.Linear where the parameters are scaled before
+    use, via:
+         weight = self.weight * self.weight_scale.exp()
+         bias = self.bias * self.bias_scale.exp()
 
     Args:
         Accepts the standard args and kwargs that nn.Linear accepts
@@ -426,36 +571,249 @@ def ScaledLinear(*args, initial_scale: float = 1.0, **kwargs) -> nn.Linear:
            (affects the initialization of weight_scale and bias_scale).
            Another option, if you want to do something like this, is
            to re-initialize the parameters.
+        initial_speed: this affects how fast the parameter will
+           learn near the start of training; you can set it to a
+           value less than one if you suspect that a module
+           is contributing to instability near the start of training.
+           Nnote: regardless of the use of this option, it's best to
+           use schedulers like Noam that have a warm-up period.
+           Alternatively you can set it to more than 1 if you want it to
+           initially train faster.   Must be greater than 0.
     """
-    ans = nn.Linear(*args, **kwargs)
-    with torch.no_grad():
-        ans.weight[:] *= initial_scale
-        if ans.bias is not None:
-            torch.nn.init.uniform_(ans.bias, -0.1 * initial_scale, 0.1 * initial_scale)
-    return ans
+
+    def __init__(
+        self,
+        *args,
+        initial_scale: float = 1.0,
+        initial_speed: float = 1.0,
+        **kwargs
+    ):
+        super(ScaledLinear, self).__init__(*args, **kwargs)
+        initial_scale = torch.tensor(initial_scale).log()
+        self.weight_scale = nn.Parameter(initial_scale.clone().detach())
+        if self.bias is not None:
+            self.bias_scale = nn.Parameter(initial_scale.clone().detach())
+        else:
+            self.register_parameter("bias_scale", None)
+
+        self._reset_parameters(
+            initial_speed
+        )  # Overrides the reset_parameters in nn.Linear
+
+    def _reset_parameters(self, initial_speed: float):
+        std = 0.1 / initial_speed
+        a = (3 ** 0.5) * std
+        nn.init.uniform_(self.weight, -a, a)
+        if self.bias is not None:
+            nn.init.constant_(self.bias, 0.0)
+        fan_in = self.weight.shape[1] * self.weight[0][0].numel()
+        scale = fan_in ** -0.5  # 1/sqrt(fan_in)
+        with torch.no_grad():
+            self.weight_scale += torch.tensor(scale / std).log()
+
+    def get_weight(self):
+        return self.weight * self.weight_scale.exp()
+
+    def get_bias(self):
+        if self.bias is None or self.bias_scale is None:
+            return None
+        else:
+            return self.bias * self.bias_scale.exp()
+
+    def forward(self, input: Tensor) -> Tensor:
+        return torch.nn.functional.linear(
+            input, self.get_weight(), self.get_bias()
+        )
+
+#def ScaledLinear(*args, initial_scale: float = 1.0, **kwargs) -> nn.Linear:
+#    """
+#    Behaves like a constructor of a modified version of nn.Linear
+#    that gives an easy way to set the default initial parameter scale.
+#
+#    Args:
+#        Accepts the standard args and kwargs that nn.Linear accepts
+#        e.g. in_features, out_features, bias=False.
+#
+#        initial_scale: you can override this if you want to increase
+#           or decrease the initial magnitude of the module's output
+#           (affects the initialization of weight_scale and bias_scale).
+#           Another option, if you want to do something like this, is
+#           to re-initialize the parameters.
+#    """
+#    ans = nn.Linear(*args, **kwargs)
+#    with torch.no_grad():
+#        ans.weight[:] *= initial_scale
+#        if ans.bias is not None:
+#            torch.nn.init.uniform_(ans.bias, -0.1 * initial_scale, 0.1 * initial_scale)
+#    return ans
 
 
-def ScaledConv1d(*args, initial_scale: float = 1.0, **kwargs) -> nn.Conv1d:
-    """
-    Behaves like a constructor of a modified version of nn.Conv1d
-    that gives an easy way to set the default initial parameter scale.
+#def ScaledConv1d(*args, initial_scale: float = 1.0, **kwargs) -> nn.Conv1d:
+#    """
+#    Behaves like a constructor of a modified version of nn.Conv1d
+#    that gives an easy way to set the default initial parameter scale.
+#
+#    Args:
+#        Accepts the standard args and kwargs that nn.Linear accepts
+#        e.g. in_features, out_features, bias=False.
+#
+#        initial_scale: you can override this if you want to increase
+#           or decrease the initial magnitude of the module's output
+#           (affects the initialization of weight_scale and bias_scale).
+#           Another option, if you want to do something like this, is
+#           to re-initialize the parameters.
+#    """
+#    ans = nn.Conv1d(*args, **kwargs)
+#    with torch.no_grad():
+#        ans.weight[:] *= initial_scale
+#        if ans.bias is not None:
+#            torch.nn.init.uniform_(ans.bias, -0.1 * initial_scale, 0.1 * initial_scale)
+#    return ans
 
-    Args:
-        Accepts the standard args and kwargs that nn.Linear accepts
-        e.g. in_features, out_features, bias=False.
 
-        initial_scale: you can override this if you want to increase
-           or decrease the initial magnitude of the module's output
-           (affects the initialization of weight_scale and bias_scale).
-           Another option, if you want to do something like this, is
-           to re-initialize the parameters.
-    """
-    ans = nn.Conv1d(*args, **kwargs)
-    with torch.no_grad():
-        ans.weight[:] *= initial_scale
-        if ans.bias is not None:
-            torch.nn.init.uniform_(ans.bias, -0.1 * initial_scale, 0.1 * initial_scale)
-    return ans
+class ScaledConv1d(nn.Conv1d):
+    # See docs for ScaledLinear
+    def __init__(
+        self,
+        *args,
+        initial_scale: float = 1.0,
+        initial_speed: float = 1.0,
+        **kwargs
+    ):
+        super(ScaledConv1d, self).__init__(*args, **kwargs)
+        initial_scale = torch.tensor(initial_scale).log()
+
+        self.bias_scale: Optional[nn.Parameter]  # for torchscript
+
+        self.weight_scale = nn.Parameter(initial_scale.clone().detach())
+        if self.bias is not None:
+            self.bias_scale = nn.Parameter(initial_scale.clone().detach())
+        else:
+            self.register_parameter("bias_scale", None)
+        self._reset_parameters(
+            initial_speed
+        )  # Overrides the reset_parameters in base class
+
+    def _reset_parameters(self, initial_speed: float):
+        std = 0.1 / initial_speed
+        a = (3 ** 0.5) * std
+        nn.init.uniform_(self.weight, -a, a)
+        if self.bias is not None:
+            nn.init.constant_(self.bias, 0.0)
+        fan_in = self.weight.shape[1] * self.weight[0][0].numel()
+        scale = fan_in ** -0.5  # 1/sqrt(fan_in)
+        with torch.no_grad():
+            self.weight_scale += torch.tensor(scale / std).log()
+
+    def get_weight(self):
+        return self.weight * self.weight_scale.exp()
+
+    def get_bias(self):
+        bias = self.bias
+        bias_scale = self.bias_scale
+        if bias is None or bias_scale is None:
+            return None
+        else:
+            return bias * bias_scale.exp()
+
+    def forward(self, input: Tensor) -> Tensor:
+        F = torch.nn.functional
+        if self.padding_mode != "zeros":
+            return F.conv1d(
+                F.pad(
+                    input,
+                    self._reversed_padding_repeated_twice,
+                    mode=self.padding_mode,
+                ),
+                self.get_weight(),
+                self.get_bias(),
+                self.stride,
+                (0,),
+                self.dilation,
+                self.groups,
+            )
+        return F.conv1d(
+            input,
+            self.get_weight(),
+            self.get_bias(),
+            self.stride,
+            self.padding,
+            self.dilation,
+            self.groups,
+        )
+
+
+class ScaledConv2d(nn.Conv2d):
+    # See docs for ScaledLinear
+    def __init__(
+        self,
+        *args,
+        initial_scale: float = 1.0,
+        initial_speed: float = 1.0,
+        **kwargs
+    ):
+        super(ScaledConv2d, self).__init__(*args, **kwargs)
+        initial_scale = torch.tensor(initial_scale).log()
+        self.weight_scale = nn.Parameter(initial_scale.clone().detach())
+        if self.bias is not None:
+            self.bias_scale = nn.Parameter(initial_scale.clone().detach())
+        else:
+            self.register_parameter("bias_scale", None)
+        self._reset_parameters(
+            initial_speed
+        )  # Overrides the reset_parameters in base class
+
+    def _reset_parameters(self, initial_speed: float):
+        std = 0.1 / initial_speed
+        a = (3 ** 0.5) * std
+        nn.init.uniform_(self.weight, -a, a)
+        if self.bias is not None:
+            nn.init.constant_(self.bias, 0.0)
+        fan_in = self.weight.shape[1] * self.weight[0][0].numel()
+        scale = fan_in ** -0.5  # 1/sqrt(fan_in)
+        with torch.no_grad():
+            self.weight_scale += torch.tensor(scale / std).log()
+
+    def get_weight(self):
+        return self.weight * self.weight_scale.exp()
+
+    def get_bias(self):
+        # see https://github.com/pytorch/pytorch/issues/24135
+        bias = self.bias
+        bias_scale = self.bias_scale
+        if bias is None or bias_scale is None:
+            return None
+        else:
+            return bias * bias_scale.exp()
+
+    def _conv_forward(self, input, weight):
+        F = torch.nn.functional
+        if self.padding_mode != "zeros":
+            return F.conv2d(
+                F.pad(
+                    input,
+                    self._reversed_padding_repeated_twice,
+                    mode=self.padding_mode,
+                ),
+                weight,
+                self.get_bias(),
+                self.stride,
+                (0, 0),
+                self.dilation,
+                self.groups,
+            )
+        return F.conv2d(
+            input,
+            weight,
+            self.get_bias(),
+            self.stride,
+            self.padding,
+            self.dilation,
+            self.groups,
+        )
+
+    def forward(self, input: Tensor) -> Tensor:
+        return self._conv_forward(input, self.get_weight())
 
 
 class ActivationBalancer(torch.nn.Module):
@@ -467,8 +825,8 @@ class ActivationBalancer(torch.nn.Module):
     interpolated from 1 at the threshold to those extremal values when none
     of the inputs are positive.
 
+
     Args:
-           num_channels: the number of channels
            channel_dim: the dimension/axis corresponding to the channel, e.g.
                -1, 0, 1, 2; will be interpreted as an offset from x.ndim if negative.
            min_positive: the minimum, per channel, of the proportion of the time
@@ -479,104 +837,164 @@ class ActivationBalancer(torch.nn.Module):
               either the sign constraint or the magnitude constraint;
               e.g. with max_factor=0.02, the the derivatives would be multiplied by
               values in the range [0.98..1.02].
-           sign_gain_factor: determines the 'gain' with which we increase the
-              change in gradient once the constraints on min_positive and max_positive
-              are violated.
-           scale_gain_factor: determines the 'gain' with which we increase the
-              change in gradient once the constraints on min_abs and max_abs
-              are violated.
-           min_abs:  the minimum average-absolute-value difference from the mean
-               value per channel, which we allow, before we start to modify
-               the derivatives to prevent this.
-           max_abs:  the maximum average-absolute-value difference from the mean
-               value per channel, which we allow, before we start to modify
-               the derivatives to prevent this.
-          min_prob: determines the minimum probability with which we modify the
-             gradients for the {min,max}_positive and {min,max}_abs constraints,
-             on each forward().  This is done randomly to prevent all layers
-             from doing it at the same time.  Early in training we may use
-             higher probabilities than this; it will decay to this value.
+           min_abs:  the minimum average-absolute-value per channel, which
+              we allow, before we start to modify the derivatives to prevent
+              this.
+           max_abs:  the maximum average-absolute-value per channel, which
+               we allow, before we start to modify the derivatives to prevent
+               this.
     """
 
     def __init__(
         self,
-        num_channels: int,
         channel_dim: int,
         min_positive: float = 0.05,
         max_positive: float = 0.95,
-        max_factor: float = 0.04,
-        sign_gain_factor: float = 0.01,
-        scale_gain_factor: float = 0.02,
+        max_factor: float = 0.01,
         min_abs: float = 0.2,
         max_abs: float = 100.0,
-        min_prob: float = 0.1,
     ):
         super(ActivationBalancer, self).__init__()
-        self.num_channels = num_channels
         self.channel_dim = channel_dim
         self.min_positive = min_positive
         self.max_positive = max_positive
         self.max_factor = max_factor
         self.min_abs = min_abs
         self.max_abs = max_abs
-        self.min_prob = min_prob
-        self.sign_gain_factor = sign_gain_factor
-        self.scale_gain_factor = scale_gain_factor
-
-        # count measures how many times the forward() function has been called.
-        # We occasionally sync this to a tensor called `count`, that exists to
-        # make sure it is synced to disk when we load and save the model.
-        self.cpu_count = 0
-        self.register_buffer("count", torch.tensor(0, dtype=torch.int64))
 
     def forward(self, x: Tensor) -> Tensor:
-        if torch.jit.is_scripting() or not x.requires_grad or torch.jit.is_tracing():
-            return _no_op(x)
-
-        count = self.cpu_count
-        self.cpu_count += 1
-
-        if random.random() < 0.01:
-            # Occasionally sync self.cpu_count with self.count.
-            # count affects the decay of 'prob'.  don't do this on every iter,
-            # because syncing with the GPU is slow.
-            self.cpu_count = max(self.cpu_count, self.count.item())
-            self.count.fill_(self.cpu_count)
-
-        # the prob of doing some work exponentially decreases from 0.5 till it hits
-        # a floor at min_prob (==0.1, by default)
-        prob = max(self.min_prob, 0.5 ** (1 + (count / 4000.0)))
-
-        if random.random() < prob:
-            sign_gain_factor = 0.5
-            if self.min_positive != 0.0 or self.max_positive != 1.0:
-                sign_factor = _compute_sign_factor(
-                    x,
-                    self.channel_dim,
-                    self.min_positive,
-                    self.max_positive,
-                    gain_factor=self.sign_gain_factor / prob,
-                    max_factor=self.max_factor,
-                )
-            else:
-                sign_factor = None
-
-            scale_factor = _compute_scale_factor(
-                x.detach(),
-                self.channel_dim,
-                min_abs=self.min_abs,
-                max_abs=self.max_abs,
-                gain_factor=self.scale_gain_factor / prob,
-                max_factor=self.max_factor,
-            )
+        if torch.jit.is_scripting() or is_jit_tracing():
+            return x
+        else:
             return ActivationBalancerFunction.apply(
                 x,
-                scale_factor,
-                sign_factor,
                 self.channel_dim,
+                self.min_positive,
+                self.max_positive,
+                self.max_factor,
+                self.min_abs,
+                self.max_abs,
             )
-        else:
-            return _no_op(x)
+
+#class ActivationBalancer(torch.nn.Module):
+#    """
+#    Modifies the backpropped derivatives of a function to try to encourage, for
+#    each channel, that it is positive at least a proportion `threshold` of the
+#    time.  It does this by multiplying negative derivative values by up to
+#    (1+max_factor), and positive derivative values by up to (1-max_factor),
+#    interpolated from 1 at the threshold to those extremal values when none
+#    of the inputs are positive.
+#
+#    Args:
+#           num_channels: the number of channels
+#           channel_dim: the dimension/axis corresponding to the channel, e.g.
+#               -1, 0, 1, 2; will be interpreted as an offset from x.ndim if negative.
+#           min_positive: the minimum, per channel, of the proportion of the time
+#               that (x > 0), below which we start to modify the derivatives.
+#           max_positive: the maximum, per channel, of the proportion of the time
+#               that (x > 0), above which we start to modify the derivatives.
+#           max_factor: the maximum factor by which we modify the derivatives for
+#              either the sign constraint or the magnitude constraint;
+#              e.g. with max_factor=0.02, the the derivatives would be multiplied by
+#              values in the range [0.98..1.02].
+#           sign_gain_factor: determines the 'gain' with which we increase the
+#              change in gradient once the constraints on min_positive and max_positive
+#              are violated.
+#           scale_gain_factor: determines the 'gain' with which we increase the
+#              change in gradient once the constraints on min_abs and max_abs
+#              are violated.
+#           min_abs:  the minimum average-absolute-value difference from the mean
+#               value per channel, which we allow, before we start to modify
+#               the derivatives to prevent this.
+#           max_abs:  the maximum average-absolute-value difference from the mean
+#               value per channel, which we allow, before we start to modify
+#               the derivatives to prevent this.
+#          min_prob: determines the minimum probability with which we modify the
+#             gradients for the {min,max}_positive and {min,max}_abs constraints,
+#             on each forward().  This is done randomly to prevent all layers
+#             from doing it at the same time.  Early in training we may use
+#             higher probabilities than this; it will decay to this value.
+#    """
+#
+#    def __init__(
+#        self,
+#        num_channels: int,
+#        channel_dim: int,
+#        min_positive: float = 0.05,
+#        max_positive: float = 0.95,
+#        max_factor: float = 0.04,
+#        sign_gain_factor: float = 0.01,
+#        scale_gain_factor: float = 0.02,
+#        min_abs: float = 0.2,
+#        max_abs: float = 100.0,
+#        min_prob: float = 0.1,
+#    ):
+#        super(ActivationBalancer, self).__init__()
+#        self.num_channels = num_channels
+#        self.channel_dim = channel_dim
+#        self.min_positive = min_positive
+#        self.max_positive = max_positive
+#        self.max_factor = max_factor
+#        self.min_abs = min_abs
+#        self.max_abs = max_abs
+#        self.min_prob = min_prob
+#        self.sign_gain_factor = sign_gain_factor
+#        self.scale_gain_factor = scale_gain_factor
+#
+#        # count measures how many times the forward() function has been called.
+#        # We occasionally sync this to a tensor called `count`, that exists to
+#        # make sure it is synced to disk when we load and save the model.
+#        self.cpu_count = 0
+#        self.register_buffer("count", torch.tensor(0, dtype=torch.int64))
+#
+#    def forward(self, x: Tensor) -> Tensor:
+#        if torch.jit.is_scripting() or not x.requires_grad or torch.jit.is_tracing():
+#            return _no_op(x)
+#
+#        count = self.cpu_count
+#        self.cpu_count += 1
+#
+#        if random.random() < 0.01:
+#            # Occasionally sync self.cpu_count with self.count.
+#            # count affects the decay of 'prob'.  don't do this on every iter,
+#            # because syncing with the GPU is slow.
+#            self.cpu_count = max(self.cpu_count, self.count.item())
+#            self.count.fill_(self.cpu_count)
+#
+#        # the prob of doing some work exponentially decreases from 0.5 till it hits
+#        # a floor at min_prob (==0.1, by default)
+#        prob = max(self.min_prob, 0.5 ** (1 + (count / 4000.0)))
+#
+#        if random.random() < prob:
+#            sign_gain_factor = 0.5
+#            if self.min_positive != 0.0 or self.max_positive != 1.0:
+#                sign_factor = _compute_sign_factor(
+#                    x,
+#                    self.channel_dim,
+#                    self.min_positive,
+#                    self.max_positive,
+#                    gain_factor=self.sign_gain_factor / prob,
+#                    max_factor=self.max_factor,
+#                )
+#            else:
+#                sign_factor = None
+#
+#            scale_factor = _compute_scale_factor(
+#                x.detach(),
+#                self.channel_dim,
+#                min_abs=self.min_abs,
+#                max_abs=self.max_abs,
+#                gain_factor=self.scale_gain_factor / prob,
+#                max_factor=self.max_factor,
+#            )
+#            return ActivationBalancerFunction.apply(
+#                x,
+#                scale_factor,
+#                sign_factor,
+#                self.channel_dim,
+#            )
+#        else:
+#            return _no_op(x)
 
 
 def penalize_abs_values_gt(x: Tensor, limit: float, penalty: float) -> Tensor:

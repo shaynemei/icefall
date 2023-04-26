@@ -1205,8 +1205,8 @@ def main():
 
     # test_sets = ["dev-clean", "dev-other", "test-clean", "test-other"]
     # test_dl = [dev_clean_dl, dev_other_dl, test_clean_dl, test_other_dl]
-    test_sets = ["test-clean", "test-other"]
-    test_dl = [test_clean_dl, test_other_dl]
+    #test_sets = ["test-clean", "test-other"]
+    #test_dl = [test_clean_dl, test_other_dl]
     # test_sets = ["test-clean"]
     # test_dl = [test_clean_dl]
     # test_sets = ["test-other"]

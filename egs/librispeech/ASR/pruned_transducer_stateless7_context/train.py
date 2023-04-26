@@ -60,6 +60,7 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import LibriSpeechAsrDataModule
+from conformer import Conformer
 from decoder import Decoder
 from joiner import Joiner
 from lhotse.cut import Cut
@@ -97,6 +98,7 @@ from icefall.utils import (
     setup_logger,
     str2bool,
 )
+from icefall.lexicon import Lexicon
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
 
@@ -113,9 +115,23 @@ def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
 def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--num-encoder-layers",
-        type=str,
-        default="2,4,3,2,4",
-        help="Number of zipformer encoder layers, comma separated.",
+        type=int,
+        default=24,
+        help="Number of conformer encoder layers..",
+    )
+    
+    #parser.add_argument(
+    #    "--num-encoder-layers",
+    #    type=str,
+    #    default="2,4,3,2,4",
+    #    help="Number of zipformer encoder layers, comma separated.",
+    #)
+    
+    parser.add_argument(
+        "--dim-feedforward",
+        type=int,
+        default=1536,
+        help="Feedforward dimension of the conformer encoder layer.",
     )
 
     parser.add_argument(
@@ -125,19 +141,33 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         help="Feedforward dimension of the zipformer encoder layers, comma separated.",
     )
 
+    #parser.add_argument(
+    #    "--nhead",
+    #    type=str,
+    #    default="8,8,8,8,8",
+    #    help="Number of attention heads in the zipformer encoder layers.",
+    #)
+    
     parser.add_argument(
         "--nhead",
-        type=str,
-        default="8,8,8,8,8",
-        help="Number of attention heads in the zipformer encoder layers.",
+        type=int,
+        default=8,
+        help="Number of attention heads in the conformer encoder layer.",
+    )
+    
+    parser.add_argument(
+        "--encoder-dim",
+        type=int,
+        default=384,
+        help="Attention dimension in the conformer encoder layer.",
     )
 
-    parser.add_argument(
-        "--encoder-dims",
-        type=str,
-        default="384,384,384,384,384",
-        help="Embedding dimension in the 2 blocks of zipformer encoder layers, comma separated",
-    )
+    #parser.add_argument(
+    #    "--encoder-dims",
+    #    type=str,
+    #    default="384,384,384,384,384",
+    #    help="Embedding dimension in the 2 blocks of zipformer encoder layers, comma separated",
+    #)
 
     parser.add_argument(
         "--attention-dims",
@@ -186,11 +216,54 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         to this dimension before adding.
         """,
     )
+    
+    parser.add_argument(
+        "--dynamic-chunk-training",
+        type=str2bool,
+        default=False,
+        help="""Whether to use dynamic_chunk_training, if you want a streaming
+        model, this requires to be True.
+        """,
+    )
+    
+    parser.add_argument(
+        "--causal-convolution",
+        type=str2bool,
+        default=False,
+        help="""Whether to use causal convolution, this requires to be True when
+        using dynamic_chunk_training.
+        """,
+    )
+
+    parser.add_argument(
+        "--short-chunk-size",
+        type=int,
+        default=25,
+        help="""Chunk length of dynamic training, the chunk size would be either
+        max sequence length of current batch or uniformly sampled from (1, short_chunk_size).
+        """,
+    )
+    
+    parser.add_argument(
+        "--num-left-chunks",
+        type=int,
+        default=4,
+        help="How many left context can be seen in chunks when calculating attention.",
+    )
 
 
 def get_parser():
     parser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument(
+        "--lang-dir",
+        type=str,
+        default="data/lang_char",
+        help="""The lang dir
+        It contains language related input files such as
+        "lexicon.txt"
+        """,
     )
 
     parser.add_argument(
@@ -497,19 +570,31 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
     def to_int_tuple(s: str):
         return tuple(map(int, s.split(",")))
 
-    encoder = Zipformer(
+    #encoder = Zipformer(
+    #    num_features=params.feature_dim,
+    #    output_downsampling_factor=2,
+    #    zipformer_downsampling_factors=to_int_tuple(
+    #        params.zipformer_downsampling_factors
+    #    ),
+    #    encoder_dims=to_int_tuple(params.encoder_dims),
+    #    attention_dim=to_int_tuple(params.attention_dims),
+    #    encoder_unmasked_dims=to_int_tuple(params.encoder_unmasked_dims),
+    #    nhead=to_int_tuple(params.nhead),
+    #    feedforward_dim=to_int_tuple(params.feedforward_dims),
+    #    cnn_module_kernels=to_int_tuple(params.cnn_module_kernels),
+    #    num_encoder_layers=to_int_tuple(params.num_encoder_layers),
+    #)
+    encoder = Conformer(
         num_features=params.feature_dim,
-        output_downsampling_factor=2,
-        zipformer_downsampling_factors=to_int_tuple(
-            params.zipformer_downsampling_factors
-        ),
-        encoder_dims=to_int_tuple(params.encoder_dims),
-        attention_dim=to_int_tuple(params.attention_dims),
-        encoder_unmasked_dims=to_int_tuple(params.encoder_unmasked_dims),
-        nhead=to_int_tuple(params.nhead),
-        feedforward_dim=to_int_tuple(params.feedforward_dims),
-        cnn_module_kernels=to_int_tuple(params.cnn_module_kernels),
-        num_encoder_layers=to_int_tuple(params.num_encoder_layers),
+        subsampling_factor=params.subsampling_factor,
+        d_model=params.encoder_dim,
+        nhead=params.nhead,
+        dim_feedforward=params.dim_feedforward,
+        num_encoder_layers=params.num_encoder_layers,
+        dynamic_chunk_training=params.dynamic_chunk_training,
+        short_chunk_size=params.short_chunk_size,
+        num_left_chunks=params.num_left_chunks,
+        causal=params.causal_convolution,
     )
     return encoder
 
@@ -525,12 +610,19 @@ def get_decoder_model(params: AttributeDict) -> nn.Module:
 
 
 def get_joiner_model(params: AttributeDict) -> nn.Module:
+    #joiner = Joiner(
+    #    encoder_dim=int(params.encoder_dims.split(",")[-1]),
+    #    decoder_dim=params.decoder_dim,
+    #    joiner_dim=params.joiner_dim,
+    #    vocab_size=params.vocab_size,
+    #)
     joiner = Joiner(
-        encoder_dim=int(params.encoder_dims.split(",")[-1]),
+        encoder_dim=params.encoder_dim,
         decoder_dim=params.decoder_dim,
         joiner_dim=params.joiner_dim,
         vocab_size=params.vocab_size,
     )
+    return joiner
     return joiner
 
 def get_contextual_model(params: AttributeDict) -> nn.Module:
@@ -560,7 +652,8 @@ def get_contextual_model(params: AttributeDict) -> nn.Module:
         )
 
     encoder_biasing_adapter = BiasingModule(
-        query_dim=int(params.encoder_dims.split(",")[-1]),
+        #query_dim=int(params.encoder_dims.split(",")[-1]),
+        query_dim=params.encoder_dim,
         qkv_dim=context_dim,
         num_heads=4,
     )
@@ -583,7 +676,8 @@ def get_transducer_model(params: AttributeDict) -> nn.Module:
         encoder=encoder,
         decoder=decoder,
         joiner=joiner,
-        encoder_dim=int(params.encoder_dims.split(",")[-1]),
+        #encoder_dim=int(params.encoder_dims.split(",")[-1]),
+        encoder_dim=params.encoder_dim,
         decoder_dim=params.decoder_dim,
         joiner_dim=params.joiner_dim,
         vocab_size=params.vocab_size,
